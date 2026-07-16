@@ -248,16 +248,12 @@
     70%{ box-shadow:0 0 0 14px rgba(201,122,43,0); }
     100%{ box-shadow:0 0 0 0 rgba(201,122,43,0); }
   }
-  .icon-btn.mic-btn .circle{ border-color:var(--danger); color:var(--danger); position:relative; z-index:2; }
+  .icon-btn.mic-btn .circle{ border-color:var(--danger); color:var(--danger); }
   .icon-btn.mic-btn.listening .circle{
     background:var(--danger); color:#fff; animation: micPulse 1.2s infinite;
   }
   .icon-btn.mic-btn.listening.speaking .circle{
-    animation: micPulseActive 0.6s infinite;
-  }
-  .icon-btn.mic-btn .circle{
-    transform: scale(calc(1 + var(--mic-level, 0) * 0.22));
-    transition: transform 60ms linear;
+    animation: micPulseActive 0.6s infinite; transform:scale(1.06);
   }
   @keyframes micPulse{
     0%{ box-shadow:0 0 0 0 rgba(209,73,91,0.45); }
@@ -268,12 +264,6 @@
     0%{ box-shadow:0 0 0 0 rgba(209,73,91,0.6); }
     70%{ box-shadow:0 0 0 20px rgba(209,73,91,0); }
     100%{ box-shadow:0 0 0 0 rgba(209,73,91,0); }
-  }
-  .mic-wrap{ position:relative; display:flex; flex-direction:column; align-items:center; }
-  .mic-ring{
-    position:absolute; top:0; left:50%; width:64px; height:64px; border-radius:50%;
-    background:rgba(209,73,91,0.35); pointer-events:none; z-index:1;
-    transform:translateX(-50%) scale(1); opacity:0; will-change:transform, opacity;
   }
   .icon-btn:disabled .circle{ opacity:0.4; cursor:not-allowed; }
 
@@ -477,14 +467,10 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
         <span class="circle">🔊</span>
         <span class="lbl">발음 듣기</span>
       </button>
-      <div class="mic-wrap">
-        <div class="mic-ring" id="mic-ring-1"></div>
-        <div class="mic-ring" id="mic-ring-2"></div>
-        <button class="icon-btn mic-btn" id="mic-btn">
-          <span class="circle">🎤</span>
-          <span class="lbl">말하기</span>
-        </button>
-      </div>
+      <button class="icon-btn mic-btn" id="mic-btn">
+        <span class="circle">🎤</span>
+        <span class="lbl">말하기</span>
+      </button>
     </div>
 
     <div class="result-box" id="result-box"></div>
@@ -527,12 +513,6 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
   "use strict";
 
   var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-  // ---- live mic-level meter (visual only; independent of speech recognition) ----
-  var micAudioCtx = null, micAnalyser = null, micStreamTracks = null, micLevelRaf = null;
-  var micLevelSmooth1 = 0, micLevelSmooth2 = 0;
-  var micRing1 = document.getElementById('mic-ring-1');
-  var micRing2 = document.getElementById('mic-ring-2');
 
   var sentenceSet = [];   // {en, kr}
   var order = [];
@@ -1126,7 +1106,6 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
     micStatus.textContent = '듣는 중... 문장을 끝까지 말한 뒤, 다시 누르면 바로 채점돼요';
     listening = true;
     micBtn.classList.add('listening');
-    startMicLevelMeter();
 
     var finalParts = [];
     var heardAnySpeech = false;
@@ -1214,76 +1193,6 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
     }, 6000);
   }
 
-  // ---- live mic-level meter: shows actual voice volume as reactive rings ----
-  // (separate from SpeechRecognition — reads raw mic audio via Web Audio API)
-  function startMicLevelMeter(){
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-    var AudioCtxCtor = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtxCtor) return;
-
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
-      micStreamTracks = stream.getTracks();
-      micAudioCtx = new AudioCtxCtor();
-      micAnalyser = micAudioCtx.createAnalyser();
-      micAnalyser.fftSize = 512;
-      micAnalyser.smoothingTimeConstant = 0.2;
-      var source = micAudioCtx.createMediaStreamSource(stream);
-      source.connect(micAnalyser);
-
-      var data = new Uint8Array(micAnalyser.frequencyBinCount);
-
-      function tick(){
-        micAnalyser.getByteTimeDomainData(data);
-        var sumSquares = 0;
-        for (var i = 0; i < data.length; i++){
-          var v = (data[i] - 128) / 128;
-          sumSquares += v * v;
-        }
-        var rms = Math.sqrt(sumSquares / data.length);
-        var level = Math.max(0, Math.min(1, rms * 4.5)); // typical speech RMS is small; scale up for visibility
-
-        // two easing speeds so the rings don't move in lockstep (more organic)
-        micLevelSmooth1 += (level - micLevelSmooth1) * 0.5;
-        micLevelSmooth2 += (level - micLevelSmooth2) * 0.18;
-
-        applyMicLevel(micLevelSmooth1, micLevelSmooth2);
-        micLevelRaf = requestAnimationFrame(tick);
-      }
-      tick();
-    }).catch(function(){
-      // Mic-level visualization is a nice-to-have; if permission/hardware
-      // fails here, the existing listening/speaking pulse animation still works.
-    });
-  }
-
-  function stopMicLevelMeter(){
-    if (micLevelRaf){ cancelAnimationFrame(micLevelRaf); micLevelRaf = null; }
-    if (micStreamTracks){
-      micStreamTracks.forEach(function(t){ try { t.stop(); } catch (err) { /* ignore */ } });
-      micStreamTracks = null;
-    }
-    if (micAudioCtx){
-      try { micAudioCtx.close(); } catch (err) { /* ignore */ }
-      micAudioCtx = null;
-    }
-    micAnalyser = null;
-    micLevelSmooth1 = 0;
-    micLevelSmooth2 = 0;
-    applyMicLevel(0, 0);
-  }
-
-  function applyMicLevel(level1, level2){
-    micBtn.style.setProperty('--mic-level', level1.toFixed(3));
-    if (micRing1){
-      micRing1.style.transform = 'translateX(-50%) scale(' + (1 + level1 * 1.9).toFixed(2) + ')';
-      micRing1.style.opacity = (level1 * 0.5).toFixed(2);
-    }
-    if (micRing2){
-      micRing2.style.transform = 'translateX(-50%) scale(' + (1 + level2 * 2.8).toFixed(2) + ')';
-      micRing2.style.opacity = (level2 * 0.32).toFixed(2);
-    }
-  }
-
   function stopListening(){
     if (recognizer){
       try { recognizer.stop(); } catch (err) { /* ignore */ }
@@ -1296,7 +1205,6 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
     micBtn.classList.remove('listening');
     micBtn.classList.remove('speaking');
     clearTimeout(noSpeechTimer);
-    stopMicLevelMeter();
   }
 
   function evaluateAttempt(transcript){

@@ -226,7 +226,6 @@
 </style>
 </head>
 <body>
-<script src="gamify.js"></script>
 <div class="app">
   <header class="top">
     <div class="title-group">
@@ -268,7 +267,7 @@
       <div class="gh-field"><label for="gh-repo">저장소</label><input type="text" id="gh-repo" placeholder="예: my-repo"></div>
       <div class="gh-field"><label for="gh-path">폴더 경로</label><input type="text" id="gh-path" placeholder="비워두면 저장소 최상위 폴더"></div>
       <div class="gh-field"><label for="gh-branch">브랜치</label><input type="text" id="gh-branch" placeholder="비워두면 기본 브랜치 사용"></div>
-      <p class="hint">공개(public) 저장소만 지원합니다. 이 폴더의 엑셀 파일(.xlsx, .xls) 목록이 모두 표시됩니다.</p>
+      <p class="hint">공개(public) 저장소만 지원합니다. 파일명에 <code>[Voca]</code> 표시가 있는 엑셀 파일만 목록에 표시됩니다.</p>
       <div style="margin-top:10px;"><button class="ghost-btn" id="gh-list-btn">엑셀 파일 목록 불러오기</button></div>
       <div id="gh-file-list" class="gh-file-list is-hidden"></div>
     </div>
@@ -288,6 +287,18 @@
         <select id="speech-lang">
           <option value="en-US" selected>영어 (미국)</option>
           <option value="en-GB">영어 (영국)</option>
+          <option value="de-DE">독일어</option>
+          <option value="ja-JP">일본어</option>
+          <option value="zh-CN">중국어 (간체)</option>
+          <option value="fr-FR">프랑스어</option>
+          <option value="es-ES">스페인어</option>
+          <option value="it-IT">이탈리아어</option>
+          <option value="ru-RU">러시아어</option>
+          <option value="pt-BR">포르투갈어 (브라질)</option>
+          <option value="vi-VN">베트남어</option>
+          <option value="th-TH">태국어</option>
+          <option value="id-ID">인도네시아어</option>
+          <option value="ko-KR">한국어</option>
         </select>
       </div>
     </div>
@@ -614,7 +625,38 @@
     return { data: result };
   }
 
-  function setVocabSet(list){
+  // Best-effort language detection: prefer hints in the source filename
+  // (e.g. "Deutsch", "Japanese", "TOEFL"), then fall back to scanning the
+  // loaded words themselves for script/word cues.
+  function detectLangFromFilename(name){
+    var s = (name || '').toLowerCase();
+    if (/deutsch|german/.test(s)) return 'de-DE';
+    if (/chinese|mandarin/.test(s)) return 'zh-CN';
+    if (/japanese/.test(s)) return 'ja-JP';
+    if (/french/.test(s)) return 'fr-FR';
+    if (/spanish/.test(s)) return 'es-ES';
+    if (/italian/.test(s)) return 'it-IT';
+    if (/russian/.test(s)) return 'ru-RU';
+    if (/portuguese/.test(s)) return 'pt-BR';
+    if (/vietnamese/.test(s)) return 'vi-VN';
+    if (/\bthai\b/.test(s)) return 'th-TH';
+    if (/indonesian/.test(s)) return 'id-ID';
+    if (/korean/.test(s)) return 'ko-KR';
+    if (/toefl|english/.test(s)) return 'en-US';
+    return null;
+  }
+  function detectLangFromContent(list){
+    var sample = list.slice(0, 5).map(function(w){ return w.word; }).join(' ');
+    if (/[\u3040-\u30ff]/.test(sample)) return 'ja-JP';
+    if (/[\u4e00-\u9fff]/.test(sample)) return 'zh-CN';
+    if (/[äöüßÄÖÜ]/.test(sample)) return 'de-DE';
+    return null;
+  }
+  function detectSpeechLangForVocab(filename, list){
+    return detectLangFromFilename(filename) || detectLangFromContent(list);
+  }
+
+  function setVocabSet(list, filename){
     vocabSet = list;
     if (!list.length){ previewWrap.style.display = 'none'; startBtn.disabled = true; return; }
     previewWrap.style.display = 'block';
@@ -633,6 +675,11 @@
       previewList.appendChild(more);
     }
     startBtn.disabled = false;
+
+    // Auto-set the pronunciation language from the loaded file; the user can
+    // still change it manually afterward via the settings dropdown.
+    var detected = detectSpeechLangForVocab(filename, list);
+    if (detected) speechLangSelect.value = detected;
   }
 
   parseTextBtn.addEventListener('click', function(){
@@ -656,7 +703,7 @@
         var data = new Uint8Array(evt.target.result);
         var res = parseVocabWorkbookData(data);
         if (res.error){ showError(res.error); setVocabSet([]); return; }
-        setVocabSet(res.data);
+        setVocabSet(res.data, file.name);
       } catch (err){ showError('엑셀 파일을 읽는 중 오류가 발생했습니다.'); setVocabSet([]); }
     };
     reader.readAsArrayBuffer(file);
@@ -699,13 +746,13 @@
       })
       .then(function(items){
         if (!Array.isArray(items)) throw new Error('입력한 경로가 폴더가 아닙니다.');
-        renderGhFileList(items.filter(function(it){ return it.type==='file' && /\.(xlsx|xls)$/i.test(it.name); }));
+        renderGhFileList(items.filter(function(it){ return it.type==='file' && /\.(xlsx|xls)$/i.test(it.name) && /\[voca\]/i.test(it.name); }));
       })
       .catch(function(err){ ghFileList.classList.add('is-hidden'); ghFileList.innerHTML=''; showError(err.message || '오류가 발생했습니다.'); });
   });
 
   function renderGhFileList(files){
-    if (!files.length){ setGhFileListContent('<div class="gh-file-note">이 폴더에서 엑셀 파일을 찾지 못했습니다.</div>'); return; }
+    if (!files.length){ setGhFileListContent('<div class="gh-file-note">이 폴더에서 "[Voca]" 표시가 있는 엑셀 파일을 찾지 못했습니다.</div>'); return; }
     ghFileList.innerHTML = '';
     files.forEach(function(file){
       var row = document.createElement('div');
@@ -727,7 +774,7 @@
     }).then(function(buf){
       var res = parseVocabWorkbookData(new Uint8Array(buf));
       if (res.error){ showError(res.error); setVocabSet([]); return; }
-      setVocabSet(res.data);
+      setVocabSet(res.data, file.name);
     }).catch(function(err){ showError(err.message || '파일을 불러오는 중 오류가 발생했습니다.'); })
       .then(function(){ if (pickLabel) pickLabel.textContent = '불러오기 →'; });
   }
@@ -851,7 +898,7 @@
   doneMenuBtn.addEventListener('click', showModuleMenu);
   doneRetryBtn.addEventListener('click', function(){ if (doneRetryHandler) doneRetryHandler(); });
 
-  function showDone(title, stats, retryHandler, gamifyInfo){
+  function showDone(title, stats, retryHandler){
     document.getElementById('done-title').textContent = title;
     var statsEl = document.getElementById('done-stats');
     statsEl.innerHTML = '';
@@ -863,16 +910,6 @@
     });
     doneRetryHandler = retryHandler;
     showPanel('module-done-panel');
-
-    if (window.Gamify && gamifyInfo){
-      Gamify.reportResult({
-        game: 'voca',
-        accuracy: (typeof gamifyInfo.accuracy === 'number') ? gamifyInfo.accuracy : null,
-        comboMax: gamifyInfo.comboMax || 0,
-        correctCount: gamifyInfo.correctCount,
-        totalCount: gamifyInfo.totalCount
-      });
-    }
   }
 
   // ================= MODULE 1: FLASHCARD =================
@@ -962,8 +999,7 @@
   document.getElementById('fc-next-btn').addEventListener('click', function(){
     if (fcIndex < fcOrder.length - 1){ fcIndex++; renderFlashcard(); }
     else {
-      showDone('카드 학습 완료! 📇', [{label:'학습한 단어', value: fcOrder.length + '개'}], startFlashcard,
-        { accuracy: null, totalCount: fcOrder.length });
+      showDone('카드 학습 완료! 📇', [{label:'학습한 단어', value: fcOrder.length + '개'}], startFlashcard);
     }
   });
 
@@ -1065,11 +1101,7 @@
               showDone('동의어 매칭 완료! 🔗', [
                 {label:'전체 단어', value: matchTotalWords + '개'},
                 {label:'실수 횟수', value: matchMistakes + '회'}
-              ], startMatch, {
-                accuracy: (matchTotalWords + matchMistakes) ? (matchTotalWords / (matchTotalWords + matchMistakes)) : 1,
-                correctCount: matchTotalWords,
-                totalCount: matchTotalWords + matchMistakes
-              });
+              ], startMatch);
             } else { loadMatchBatch(); }
           }, 450);
         }
@@ -1194,11 +1226,7 @@
       showDone('빈칸 채우기 완료! ✏️', [
         {label:'정답', value: clozeScore + ' / ' + clozeItems.length},
         {label:'정확도', value: Math.round((clozeScore/clozeItems.length)*100) + '%'}
-      ], startCloze, {
-        accuracy: clozeItems.length ? (clozeScore / clozeItems.length) : 0,
-        correctCount: clozeScore,
-        totalCount: clozeItems.length
-      });
+      ], startCloze);
     } else { loadClozeQuestion(); }
   });
 
@@ -1283,16 +1311,12 @@
       showDone('혼동 어휘 퀴즈 완료! ⚠️', [
         {label:'정답', value: confScore + ' / ' + confItems.length},
         {label:'정확도', value: Math.round((confScore/confItems.length)*100) + '%'}
-      ], startConfusable, {
-        accuracy: confItems.length ? (confScore / confItems.length) : 0,
-        correctCount: confScore,
-        totalCount: confItems.length
-      });
+      ], startConfusable);
     } else { loadConfQuestion(); }
   });
 
   // ================= MODULE 5: REVIEW =================
-  var reviewList = [], reviewIndex = 0, reviewRevealed = false, reviewGoodCount = 0;
+  var reviewList = [], reviewIndex = 0, reviewRevealed = false;
   var reviewWordEl = document.getElementById('review-word');
   var reviewPhoneticEl = document.getElementById('review-phonetic');
   var reviewAnswerBlock = document.getElementById('review-answer-block');
@@ -1311,7 +1335,6 @@
       return;
     }
     reviewIndex = 0;
-    reviewGoodCount = 0;
     showPanel('review-panel');
     loadReviewCard();
   }
@@ -1344,18 +1367,13 @@
     btn.addEventListener('click', function(){
       if (!reviewRevealed) return;
       var q = parseInt(btn.dataset.q, 10);
-      if (q >= 3) reviewGoodCount++;
       updateSrs(reviewList[reviewIndex].word, q);
       reviewIndex++;
       if (reviewIndex >= reviewList.length){
         showDone('오늘의 복습 완료! 🔁', [
           {label:'복습한 단어', value: reviewList.length + '개'},
           {label:'다음 복습', value:'기억 정도에 따라 자동 예약됨'}
-        ], startReview, {
-          accuracy: reviewList.length ? (reviewGoodCount / reviewList.length) : 0,
-          correctCount: reviewGoodCount,
-          totalCount: reviewList.length
-        });
+        ], startReview);
       } else { loadReviewCard(); }
     });
   });

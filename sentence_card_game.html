@@ -777,7 +777,6 @@
 </style>
 </head>
 <body>
-<script src="gamify.js"></script>
 <div class="app">
   <header class="top">
     <div class="title-group">
@@ -829,7 +828,7 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
         <label for="gh-branch">브랜치</label>
         <input type="text" id="gh-branch" placeholder="비워두면 기본 브랜치 사용">
       </div>
-      <p class="hint">공개(public) 저장소만 지원합니다. 이 페이지가 GitHub Pages(*.github.io)에서 열려 있다면 사용자·저장소·폴더를 자동으로 채워봅니다 (필요하면 직접 수정하세요).</p>
+      <p class="hint">공개(public) 저장소만 지원합니다. 이 페이지가 GitHub Pages(*.github.io)에서 열려 있다면 사용자·저장소·폴더를 자동으로 채워봅니다 (필요하면 직접 수정하세요). 파일명에 <code>[Sentence]</code> 표시가 있는 엑셀 파일만 목록에 표시됩니다.</p>
       <div style="margin-top:10px;">
         <button class="ghost-btn" id="gh-list-btn">엑셀 파일 목록 불러오기</button>
       </div>
@@ -1199,7 +1198,38 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
     return (currentPos >= order.length - 1) ? '결과 확인' : '다음 문장 →';
   }
 
-  function setSentenceSet(list){
+  // Best-effort language detection: prefer hints in the source filename
+  // (e.g. "Deutsch", "Japanese", "TOEFL"), then fall back to scanning the
+  // loaded sentences themselves for script/word cues.
+  function detectLangFromFilename(name){
+    var s = (name || '').toLowerCase();
+    if (/deutsch|german/.test(s)) return 'de-DE';
+    if (/chinese|mandarin/.test(s)) return 'zh-CN';
+    if (/japanese/.test(s)) return 'ja-JP';
+    if (/french/.test(s)) return 'fr-FR';
+    if (/spanish/.test(s)) return 'es-ES';
+    if (/italian/.test(s)) return 'it-IT';
+    if (/russian/.test(s)) return 'ru-RU';
+    if (/portuguese/.test(s)) return 'pt-BR';
+    if (/vietnamese/.test(s)) return 'vi-VN';
+    if (/\bthai\b/.test(s)) return 'th-TH';
+    if (/indonesian/.test(s)) return 'id-ID';
+    if (/korean/.test(s)) return 'ko-KR';
+    if (/toefl|english/.test(s)) return 'en-US';
+    return null;
+  }
+  function detectLangFromContent(list){
+    var sample = list.slice(0, 5).map(function(s){ return s.en; }).join(' ');
+    if (/[\u3040-\u30ff]/.test(sample)) return 'ja-JP';
+    if (/[\u4e00-\u9fff]/.test(sample)) return 'zh-CN';
+    if (/[äöüßÄÖÜ]/.test(sample)) return 'de-DE';
+    return null;
+  }
+  function detectPronounceLang(filename, list){
+    return detectLangFromFilename(filename) || detectLangFromContent(list);
+  }
+
+  function setSentenceSet(list, filename){
     sentenceSet = list;
     previousRunStats = null; // a fresh sentence set starts a new comparison baseline
     if (!list.length){
@@ -1224,6 +1254,11 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
       previewList.appendChild(more);
     }
     startBtn.disabled = false;
+
+    // Auto-set the pronunciation language from the loaded file; the user can
+    // still change it manually afterward via the settings dropdown.
+    var detected = detectPronounceLang(filename, list);
+    if (detected) pronounceLangSelect.value = detected;
   }
 
   // ---------- text parsing ----------
@@ -1293,7 +1328,7 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
           setSentenceSet([]);
           return;
         }
-        setSentenceSet(result);
+        setSentenceSet(result, file.name);
       } catch (err){
         showError('엑셀 파일을 읽는 중 오류가 발생했습니다.');
         setSentenceSet([]);
@@ -1358,7 +1393,7 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
           throw new Error('입력한 경로가 폴더가 아닙니다.');
         }
         var files = items.filter(function(it){
-          return it.type === 'file' && /\.(xlsx|xls)$/i.test(it.name);
+          return it.type === 'file' && /\.(xlsx|xls)$/i.test(it.name) && /\[sentence\]/i.test(it.name);
         });
         renderGhFileList(files);
       })
@@ -1371,7 +1406,7 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
 
   function renderGhFileList(files){
     if (!files.length){
-      setGhFileListContent('<div class="gh-file-note">이 폴더에서 엑셀 파일(.xlsx, .xls)을 찾지 못했습니다.</div>');
+      setGhFileListContent('<div class="gh-file-note">이 폴더에서 "[Sentence]" 표시가 있는 엑셀 파일(.xlsx, .xls)을 찾지 못했습니다.</div>');
       return;
     }
     ghFileList.innerHTML = '';
@@ -1407,7 +1442,7 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
           setSentenceSet([]);
           return;
         }
-        setSentenceSet(result);
+        setSentenceSet(result, file.name);
       })
       .catch(function(err){
         showError(err.message || '파일을 불러오는 중 오류가 발생했습니다.');
@@ -1864,16 +1899,6 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
 
     renderHighlights();
     renderComparison(totalSeconds, avgSeconds);
-
-    if (window.Gamify){
-      Gamify.reportResult({
-        game: 'sentence',
-        accuracy: order.length ? (score / order.length) : 0,
-        comboMax: bestStreak,
-        correctCount: score,
-        totalCount: order.length
-      });
-    }
 
     previousRunStats = {
       score: score,

@@ -70,7 +70,7 @@
 
   .game-grid{
     display:grid;
-    grid-template-columns:repeat(2, 1fr);
+    grid-template-columns:repeat(4, 1fr);
     gap:24px;
   }
 
@@ -118,7 +118,7 @@
   .game-card-wrap:nth-child(1) .manual-link:hover{ color:var(--primary); background:#EEF1FB; }
   .game-card-wrap:nth-child(2) .manual-link:hover{ color:var(--success); background:#EEF7EE; }
   .game-card-wrap:nth-child(3) .manual-link:hover{ color:#C97A2B; background:#FBF1E5; }
-  .game-card-wrap:nth-child(4) .manual-link:hover{ color:#7C5CBF; background:#F3EEFB; }
+  .game-card-wrap:nth-child(4) .manual-link:hover{ color:#6C4AB6; background:#F3EEFB; }
 
   .game-art{
     height:190px;
@@ -128,7 +128,7 @@
   .game-art.sentence-art{ background:linear-gradient(160deg,#EEF1FB,#DDE4F8); }
   .game-art.match-art{ background:linear-gradient(160deg,#EEF9EE,#DBF0DC); }
   .game-art.speak-art{ background:linear-gradient(160deg,#FDF3E4,#FAE4C4); }
-  .game-art.voca-art{ background:linear-gradient(160deg,#F3EEFB,#E2D6F5); }
+  .game-art.voca-art{ background:linear-gradient(160deg,#F3EEFB,#E1D0F5); }
   .game-art svg{ position:absolute; inset:0; width:100%; height:100%; }
 
   .game-body{
@@ -150,7 +150,7 @@
   .game-kicker.sentence{ color:var(--primary); }
   .game-kicker.match{ color:var(--success-dark); }
   .game-kicker.speak{ color:#C97A2B; }
-  .game-kicker.voca{ color:#7C5CBF; }
+  .game-kicker.voca{ color:#6C4AB6; }
 
   .game-card h2{
     font-family:'Noto Serif KR', serif;
@@ -184,42 +184,12 @@
   .game-card.sentence-card .play-pill{ background:var(--primary); }
   .game-card.match-card .play-pill{ background:var(--success); }
   .game-card.speak-card .play-pill{ background:#C97A2B; }
-  .game-card.voca-card .play-pill{ background:#7C5CBF; }
+  .game-card.voca-card .play-pill{ background:#6C4AB6; }
   .game-card:active .play-pill{ transform:scale(0.98); }
 
-  @media (max-width:900px){
+  @media (max-width:1000px){
     .game-grid{ grid-template-columns:1fr 1fr; }
   }
-
-  .dash{
-    background:var(--paper);
-    border:1px solid var(--border);
-    border-radius:18px;
-    padding:20px 24px;
-    margin-bottom:32px;
-    display:flex;
-    align-items:center;
-    gap:22px;
-    flex-wrap:wrap;
-    box-shadow:0 1px 2px rgba(30,42,68,0.04), 0 8px 24px -12px rgba(30,42,68,0.10);
-  }
-  .dash .dash-empty{ font-size:13.5px; color:var(--ink-soft); }
-  .dash .dash-empty button{
-    appearance:none; border:1px solid var(--border); background:#fff; color:var(--primary);
-    font-family:'Inter',sans-serif; font-weight:700; font-size:13px; padding:8px 14px; border-radius:9px;
-    cursor:pointer; margin-left:10px;
-  }
-  .dash-stat{ display:flex; flex-direction:column; gap:2px; }
-  .dash-stat .dash-label{ font-size:11.5px; color:var(--ink-soft); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
-  .dash-stat .dash-value{ font-size:19px; font-weight:700; color:var(--ink); font-family:'Space Grotesk', monospace; }
-  .dash-nick{ display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; }
-  .dash-avatar{ width:38px; height:38px; border-radius:50%; background:var(--amber); color:#5A3B0B; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; }
-  .dash-divider{ width:1px; align-self:stretch; background:var(--border); }
-  .dash-switch{
-    appearance:none; border:1px solid var(--border); background:#fff; color:var(--ink-soft);
-    font-family:'Inter',sans-serif; font-weight:600; font-size:12.5px; padding:7px 12px; border-radius:9px; cursor:pointer; margin-left:auto;
-  }
-  .dash-switch:hover{ border-color:var(--primary); color:var(--primary); }
 
   @media (max-width:600px){
     body{ padding:28px 12px 40px; }
@@ -241,17 +211,12 @@
 </style>
 </head>
 <body>
-<script src="gamify.js"></script>
 <div class="app">
   <header class="top">
     <div class="eyebrow">Learning games</div>
     <h1>어떤 게임을 해볼까요?</h1>
     <p>외국어 문장과 단어를 재미있게 익히는 네 가지 게임 중 하나를 골라보세요.</p>
   </header>
-
-  <div class="dash" id="dash-box">
-    <div class="dash-empty">아직 시작 전이에요 — 닉네임을 정하면 캐럿·리그·스트릭이 여기 표시돼요.<button id="dash-start-btn">시작하기</button></div>
-  </div>
 
   <div class="game-grid">
     <div class="game-card-wrap">
@@ -444,94 +409,65 @@
       <div class="game-art voca-art">
         <svg viewBox="0 0 400 190" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <linearGradient id="vocaPurple" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#8E6FCB"/>
-              <stop offset="1" stop-color="#6647A6"/>
+            <linearGradient id="vocaGradDark" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#8465C9"/>
+              <stop offset="1" stop-color="#55397F"/>
+            </linearGradient>
+            <linearGradient id="vocaGradLight" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#F8F5FC"/>
+              <stop offset="1" stop-color="#E7DCF6"/>
             </linearGradient>
             <filter id="vocaShadow" x="-50%" y="-50%" width="200%" height="200%">
               <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#1E2A44" flood-opacity="0.20"/>
             </filter>
           </defs>
 
-          <circle cx="30" cy="10" r="80" fill="#7C5CBF" opacity="0.12"/>
-          <circle cx="378" cy="182" r="70" fill="#6647A6" opacity="0.10"/>
+          <!-- soft depth blobs -->
+          <circle cx="12" cy="10" r="78" fill="#6C4AB6" opacity="0.12"/>
+          <circle cx="384" cy="182" r="86" fill="#3A4CA8" opacity="0.07"/>
 
-          <!-- flashcard stack -->
+          <!-- back card, half-hidden behind the front flashcard -->
           <g filter="url(#vocaShadow)">
-            <rect x="46" y="46" width="150" height="98" rx="14" fill="#E2D6F5" transform="rotate(-6 121 95)"/>
-            <rect x="52" y="40" width="150" height="98" rx="14" fill="#ffffff" stroke="#CBB8EA" stroke-width="1.5" transform="rotate(-2 127 89)"/>
-          </g>
-          <text x="127" y="82" text-anchor="middle" font-family="Space Grotesk, monospace" font-weight="700" font-size="20" fill="#4B3384" transform="rotate(-2 127 89)">disperse</text>
-          <text x="127" y="106" text-anchor="middle" font-family="Noto Serif KR, serif" font-weight="600" font-size="12.5" fill="#8A79A8" transform="rotate(-2 127 89)">흩어지게 하다</text>
-
-          <!-- synonym chips -->
-          <g font-family="Inter, sans-serif" font-weight="700" font-size="11.5" filter="url(#vocaShadow)">
-            <rect x="230" y="44" width="86" height="28" rx="14" fill="url(#vocaPurple)"/>
-            <text x="273" y="63" text-anchor="middle" fill="#fff">scatter</text>
-            <rect x="248" y="80" width="98" height="28" rx="14" fill="url(#vocaPurple)"/>
-            <text x="297" y="99" text-anchor="middle" fill="#fff">dissipate</text>
-            <rect x="226" y="116" width="80" height="28" rx="14" fill="url(#vocaPurple)"/>
-            <text x="266" y="135" text-anchor="middle" fill="#fff">spread</text>
+            <rect x="150" y="24" width="150" height="98" rx="14" fill="url(#vocaGradLight)" stroke="#D8C7EE" stroke-width="1.4" transform="rotate(6 225 73)"/>
           </g>
 
-          <!-- SRS clock icon -->
-          <circle cx="345" cy="150" r="18" fill="#ffffff" stroke="#B39DDB" stroke-width="1.6"/>
-          <path d="M345 141 v10 l8 5" stroke="#6647A6" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- front flashcard: word on top, meaning beneath a divider -->
+          <g filter="url(#vocaShadow)">
+            <rect x="122" y="40" width="156" height="102" rx="14" fill="#ffffff" stroke="#D8C7EE" stroke-width="1.6" transform="rotate(-4 200 91)"/>
+          </g>
+          <g transform="rotate(-4 200 91)">
+            <text x="200" y="76" text-anchor="middle" font-family="Space Grotesk, monospace" font-weight="700" font-size="18" fill="#55397F">disperse</text>
+            <line x1="140" y1="92" x2="260" y2="92" stroke="#E7DCF6" stroke-width="1.5"/>
+            <text x="200" y="114" text-anchor="middle" font-family="Noto Serif KR, serif" font-weight="600" font-size="14" fill="#8465C9">흩어지게 하다</text>
+          </g>
+
+          <!-- flip arrow, hinting the card can be flipped for the meaning -->
+          <g transform="translate(316,88)" filter="url(#vocaShadow)">
+            <circle r="20" fill="url(#vocaGradDark)"/>
+            <path d="M -9 -4 A 10 10 0 1 1 -9 6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M -13 -8 L -9 -4 L -5 -9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+
+          <!-- small mastery dots, evoking spaced-repetition progress -->
+          <g transform="translate(56,158)">
+            <circle cx="0" cy="0" r="5" fill="#6C4AB6"/>
+            <circle cx="18" cy="0" r="5" fill="#6C4AB6"/>
+            <circle cx="36" cy="0" r="5" fill="#D8C7EE"/>
+            <circle cx="54" cy="0" r="5" fill="#D8C7EE"/>
+          </g>
         </svg>
       </div>
       <div class="game-body">
         <span class="game-kicker voca">Voca trainer</span>
-        <h2>VOCA 트레이닝</h2>
-        <p class="desc">플래시카드·동의어 매칭·빈칸 채우기·혼동어휘 퀴즈·망각곡선 복습까지, 5가지 방식으로 단어를 완전히 내 것으로 만들어요.</p>
-        <span class="play-pill">VOCA 트레이닝 시작하기 →</span>
+        <h2>단어 학습 (Voca)</h2>
+        <p class="desc">단어·뜻·예문·동의어까지 담은 단어 카드로 학습하고, 헷갈리는 단어는 복습 모드로 다시 익혀보세요. 카드마다 발음도 자동으로 재생돼요.</p>
+        <span class="play-pill">단어 학습 시작하기 →</span>
       </div>
     </a>
-    <a class="manual-link" href="index.html">📄 사용 설명서 준비 중</a>
+    <a class="manual-link" href="voca_trainer_manual.pdf" target="_blank" rel="noopener">📄 사용 설명서 (PDF)</a>
     </div>
   </div>
 </div>
-<script>
-  (function(){
-    function renderDash(){
-      var box = document.getElementById('dash-box');
-      if (!box || !window.Gamify) return;
-      var pr = Gamify.getActiveProfile();
-      if (!pr){
-        box.innerHTML = '<div class="dash-empty">아직 시작 전이에요 — 닉네임을 정하면 캐럿·리그·스트릭이 여기 표시돼요.<button id="dash-start-btn">시작하기</button></div>';
-        var btn = document.getElementById('dash-start-btn');
-        if (btn) btn.addEventListener('click', function(){
-          var nickBtn = document.getElementById('gm-bar-nick');
-          if (nickBtn) nickBtn.click();
-        });
-        return;
-      }
-      var leagueEmoji = { bronze:'🥉', silver:'🥈', gold:'🥇', sapphire:'💎', diamond:'👑' };
-      var leagueName = { bronze:'브론즈', silver:'실버', gold:'골드', sapphire:'사파이어', diamond:'다이아몬드' };
-      var statsBtn = (window.Gamify.isCloudEnabled && Gamify.isCloudEnabled())
-        ? '<button class="dash-switch" id="dash-stats-btn" style="margin-left:8px;">📊 내 순위 보기</button>'
-        : '';
-      box.innerHTML =
-        '<div class="dash-nick"><span class="dash-avatar">' + pr.nickname.charAt(0) + '</span>' + pr.nickname + '님</div>' +
-        '<div class="dash-divider"></div>' +
-        '<div class="dash-stat"><span class="dash-label">리그</span><span class="dash-value">' + (leagueEmoji[pr.league] || '🥉') + ' ' + (leagueName[pr.league] || '브론즈') + '</span></div>' +
-        '<div class="dash-stat"><span class="dash-label">보유 캐럿</span><span class="dash-value">💎 ' + pr.totalCredits + '</span></div>' +
-        '<div class="dash-stat"><span class="dash-label">연속 학습</span><span class="dash-value">🔥 ' + pr.streak.current + '일</span></div>' +
-        '<div class="dash-stat"><span class="dash-label">획득 배지</span><span class="dash-value">🏅 ' + pr.badges.length + '개</span></div>' +
-        '<button class="dash-switch" id="dash-switch-btn">프로필 전환</button>' + statsBtn;
-      var switchBtn = document.getElementById('dash-switch-btn');
-      if (switchBtn) switchBtn.addEventListener('click', function(){ Gamify.openProfileSwitcher(); });
-      var statsBtnEl = document.getElementById('dash-stats-btn');
-      if (statsBtnEl) statsBtnEl.addEventListener('click', function(){ Gamify.openMyStats(); });
-    }
-    if (document.readyState === 'loading'){
-      document.addEventListener('DOMContentLoaded', function(){ setTimeout(renderDash, 60); });
-    } else {
-      setTimeout(renderDash, 60);
-    }
-    window.addEventListener('storage', renderDash);
-    document.addEventListener('click', function(){ setTimeout(renderDash, 300); });
-  })();
-</script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {

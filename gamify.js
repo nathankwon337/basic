@@ -24,11 +24,11 @@
 (function (global) {
   'use strict';
 
-  // ▼▼▼ 운영자가 한 번만 채워주세요 ▼▼▼
-  // Apps Script 배포 후 나오는 '.../exec'로 끝나는 웹앱 URL을 여기에 붙여넣으면
-  // 모든 방문자에게 클라우드 동기화가 자동으로 켜집니다. 비워두면(기본값) 기기별 저장만 동작합니다.
+  // ▼▼▼ (레거시) 예전 방식 — 이제는 gamify_config.js에 넣는 것을 권장합니다 ▼▼▼
+  // gamify_config.js의 window.GAMIFY_CLOUD_ENDPOINT가 설정되어 있으면 그쪽이 항상 우선합니다.
+  // 이 값은 gamify.js가 업데이트될 때마다 초기화되므로 계속 채워두지 않아도 됩니다.
   var DEFAULT_CLOUD_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzdD2odP3YSXtkehAEPC6R3pvaXVg_8uupBBlkBOGMumEWRzeMzly1iJuTYyyAYbQzK/exec';
-  // ▲▲▲ 운영자가 한 번만 채워주세요 ▲▲▲
+  // ▲▲▲ (레거시) ▲▲▲
 
   var STORAGE_KEY = 'lingo_gamify_v1';
   var CLOUD_KEY = 'lingo_gamify_cloud_endpoint';
@@ -124,14 +124,18 @@
   // ---------------------------------------------------------------------
   // cloud sync (optional) — Google Apps Script 웹앱 엔드포인트
   // ---------------------------------------------------------------------
-  // 개인 설정이 없으면 사이트 공통 기본값(DEFAULT_CLOUD_ENDPOINT)을 쓴다.
-  // 개인이 "동기화 끄기"를 누르면 localStorage에 '__off__' 표시를 남겨 기본값보다 우선한다.
+  // 우선순위: 개인 브라우저 설정(localStorage) > gamify_config.js의 사이트 기본값 > (레거시) 내부 기본값
+  function siteDefaultEndpoint(){
+    return (typeof global.GAMIFY_CLOUD_ENDPOINT === 'string' && global.GAMIFY_CLOUD_ENDPOINT)
+      ? global.GAMIFY_CLOUD_ENDPOINT
+      : (DEFAULT_CLOUD_ENDPOINT || '');
+  }
   function getCloudEndpoint(){
     var personal;
     try { personal = localStorage.getItem(CLOUD_KEY); } catch (err) { personal = null; }
     if (personal === '__off__') return '';
     if (personal) return personal;
-    return DEFAULT_CLOUD_ENDPOINT || '';
+    return siteDefaultEndpoint();
   }
   function setCloudEndpoint(url){
     try {
@@ -142,7 +146,7 @@
   function isUsingSiteDefault(){
     var personal;
     try { personal = localStorage.getItem(CLOUD_KEY); } catch (err) { personal = null; }
-    return !personal && !!DEFAULT_CLOUD_ENDPOINT;
+    return !personal && !!siteDefaultEndpoint();
   }
   function isCloudEnabled(){ return !!getCloudEndpoint(); }
 
@@ -153,25 +157,34 @@
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight on Apps Script
       body: JSON.stringify(profile)
-    }).catch(function(){ /* offline/오류 시 조용히 무시 — 다음 저장 때 다시 시도됨 */ });
+    }).catch(function(err){
+      console.error('[gamify] cloudPush failed:', err);
+      /* offline/오류 시 조용히 무시 — 다음 저장 때 다시 시도됨 */
+    });
   }
 
   function cloudPull(nickname, cb){
     var url = getCloudEndpoint();
     if (!url){ cb(null); return; }
     fetch(url + '?action=get&nickname=' + encodeURIComponent(nickname))
-      .then(function(r){ return r.json(); })
+      .then(function(r){
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
       .then(function(res){ cb(res && res.found ? res.data : null); })
-      .catch(function(){ cb(null); });
+      .catch(function(err){ console.error('[gamify] cloudPull failed:', err); cb(null); });
   }
 
   function cloudLeaderboard(cb){
     var url = getCloudEndpoint();
     if (!url){ cb(null); return; }
     fetch(url + '?action=list')
-      .then(function(r){ return r.json(); })
+      .then(function(r){
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
       .then(function(res){ cb(res && res.list ? res.list : []); })
-      .catch(function(){ cb(null); });
+      .catch(function(err){ console.error('[gamify] cloudLeaderboard failed:', err); cb(null); });
   }
 
   function activeProfile(){
@@ -227,7 +240,27 @@
       '.gm-badge-chip{border:1px solid #E4E8F2;border-radius:10px;padding:8px 10px;font-size:12px;}' +
       '.gm-badge-chip.locked{opacity:.35;}' +
       '.gm-badge-chip b{display:block;font-size:12.5px;margin-bottom:2px;}' +
-      '.gm-code-box{background:#F5F7FB;border:1px dashed #B9C3E8;border-radius:10px;padding:12px;font-family:"Space Grotesk",monospace;font-size:12.5px;word-break:break-all;margin-bottom:14px;user-select:all;}';
+      '.gm-code-box{background:#F5F7FB;border:1px dashed #B9C3E8;border-radius:10px;padding:12px;font-family:"Space Grotesk",monospace;font-size:12.5px;word-break:break-all;margin-bottom:14px;user-select:all;}' +
+      '.gm-stats-modal{max-width:400px;}' +
+      '.gm-rank-hero{background:linear-gradient(135deg,#1F3A5F,#2C4C78);color:#fff;border-radius:14px;padding:18px 16px;margin-bottom:16px;}' +
+      '.gm-rank-hero .gm-rank-num{font-size:30px;font-weight:800;font-family:"Space Grotesk",monospace;}' +
+      '.gm-rank-hero .gm-rank-sub{font-size:12.5px;opacity:.85;margin-top:2px;}' +
+      '.gm-rank-hero .gm-rank-pct{display:inline-block;margin-top:8px;background:rgba(255,255,255,.16);padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700;}' +
+      '.gm-stat-block{margin-bottom:16px;text-align:left;}' +
+      '.gm-stat-block-title{font-size:12px;font-weight:700;color:#8A93A8;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;}' +
+      '.gm-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:12px;}' +
+      '.gm-bar-row .gm-bar-label{width:52px;flex-shrink:0;color:#5B6580;font-weight:600;}' +
+      '.gm-bar-track{flex:1;height:14px;background:#EEF1F6;border-radius:8px;overflow:hidden;}' +
+      '.gm-bar-fill{height:100%;border-radius:8px;background:linear-gradient(90deg,#3A4CA8,#57C7E3);}' +
+      '.gm-bar-fill.me{background:linear-gradient(90deg,#E8A33D,#C97A2B);}' +
+      '.gm-bar-row .gm-bar-val{width:56px;flex-shrink:0;text-align:right;font-family:"Space Grotesk",monospace;font-weight:700;color:#1E2A44;}' +
+      '.gm-league-dist-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;}' +
+      '.gm-league-dist-row .gm-ld-label{width:78px;flex-shrink:0;}' +
+      '.gm-league-dist-row.me .gm-ld-label{font-weight:800;color:#1F3A5F;}' +
+      '.gm-league-dist-row .gm-ld-track{flex:1;height:10px;background:#EEF1F6;border-radius:6px;overflow:hidden;}' +
+      '.gm-league-dist-row .gm-ld-fill{height:100%;background:#B9C3E8;border-radius:6px;}' +
+      '.gm-league-dist-row.me .gm-ld-fill{background:#E8A33D;}' +
+      '.gm-league-dist-row .gm-ld-count{width:26px;text-align:right;color:#8A93A8;font-size:11px;}';
     var style = document.createElement('style');
     style.id = 'gm-styles';
     style.textContent = css;
@@ -320,7 +353,7 @@
         '<a id="gm-export-link">내 기록 내보내기</a> · ' +
         '<a id="gm-import-link">기록 가져오기</a> · ' +
         '<a id="gm-badges-link">배지 보기</a><br>' +
-        '<a id="gm-cloud-link">☁️ 클라우드 동기화 설정</a>' + (isCloudEnabled() ? ' · <a id="gm-board-link">🏆 전체 순위 보기</a>' : '') +
+        '<a id="gm-cloud-link">☁️ 클라우드 동기화 설정</a>' + (isCloudEnabled() ? ' · <a id="gm-board-link">🏆 전체 순위 보기</a> · <a id="gm-stats-link">📊 내 순위 통계</a>' : '') +
       '</div>' +
       '<input type="file" id="gm-import-file" accept="application/json" class="gm-hidden">';
     var overlay = openOverlay(html);
@@ -358,6 +391,11 @@
     if (boardLink) boardLink.addEventListener('click', function(){
       closeOverlay(overlay);
       openLeaderboard();
+    });
+    var statsLink = overlay.querySelector('#gm-stats-link');
+    if (statsLink) statsLink.addEventListener('click', function(){
+      closeOverlay(overlay);
+      openMyStats();
     });
   }
 
@@ -431,9 +469,14 @@
       '<h3>🏆 전체 순위</h3>' +
       '<p id="gm-board-loading">불러오는 중...</p>' +
       '<div id="gm-board-list"></div>' +
-      '<button class="gm-btn gm-ghost" id="gm-board-close">닫기</button>';
+      '<button class="gm-btn gm-ghost" id="gm-board-close">닫기</button>' +
+      '<div class="gm-link-row"><a id="gm-board-stats-link">📊 내 순위 통계 보기</a></div>';
     var overlay = openOverlay(html);
     overlay.querySelector('#gm-board-close').addEventListener('click', function(){ closeOverlay(overlay); });
+    overlay.querySelector('#gm-board-stats-link').addEventListener('click', function(){
+      closeOverlay(overlay);
+      openMyStats();
+    });
     cloudLeaderboard(function(list){
       var loadingEl = overlay.querySelector('#gm-board-loading');
       if (!list){ loadingEl.textContent = '순위를 불러오지 못했어요. 잠시 후 다시 시도해주세요.'; return; }
@@ -447,6 +490,103 @@
           '<span>' + item.totalCredits + ' ' + CREDIT_ICON + '</span></div>';
       }).join('');
       overlay.querySelector('#gm-board-list').innerHTML = rows || '<p>아직 기록이 없어요.</p>';
+    });
+  }
+
+  function openMyStats(){
+    if (!isCloudEnabled()){
+      var offHtml =
+        '<h3>📊 내 순위 통계</h3>' +
+        '<p>전체 사용자와 비교하려면 클라우드 동기화가 필요해요. 아직 켜져 있지 않아요.</p>' +
+        '<button class="gm-btn" id="gm-stats-enable">클라우드 동기화 설정하기</button>' +
+        '<button class="gm-btn gm-ghost" id="gm-stats-close">닫기</button>';
+      var offOverlay = openOverlay(offHtml);
+      offOverlay.querySelector('#gm-stats-close').addEventListener('click', function(){ closeOverlay(offOverlay); });
+      offOverlay.querySelector('#gm-stats-enable').addEventListener('click', function(){
+        closeOverlay(offOverlay);
+        openCloudSettings();
+      });
+      return;
+    }
+
+    var html =
+      '<h3>📊 내 순위 통계</h3>' +
+      '<p id="gm-stats-loading">불러오는 중...</p>' +
+      '<div id="gm-stats-body" class="gm-hidden"></div>' +
+      '<button class="gm-btn gm-ghost" id="gm-stats-close">닫기</button>' +
+      '<div class="gm-link-row"><a id="gm-stats-board-link">🏆 전체 순위 목록 보기</a></div>';
+    var overlay = openOverlay(html);
+    overlay.querySelector('#gm-stats-close').addEventListener('click', function(){ closeOverlay(overlay); });
+    overlay.querySelector('#gm-stats-board-link').addEventListener('click', function(){
+      closeOverlay(overlay);
+      openLeaderboard();
+    });
+
+    cloudLeaderboard(function(list){
+      var loadingEl = overlay.querySelector('#gm-stats-loading');
+      var bodyEl = overlay.querySelector('#gm-stats-body');
+      try {
+        if (!list || !list.length){
+          loadingEl.textContent = list ? '아직 랭킹에 표시할 기록이 없어요.' : '통계를 불러오지 못했어요. 잠시 후 다시 시도하거나, 개발자도구(F12) Console 탭에 오류가 있는지 확인해주세요.';
+          return;
+        }
+        var pr = activeProfile();
+        var total = list.length;
+        var myIndex = pr ? list.findIndex(function(item){ return item.nickname === pr.nickname; }) : -1;
+        var myRank = myIndex === -1 ? total : myIndex + 1;
+        var percentile = Math.max(1, Math.round(((total - myRank) / total) * 100));
+        var myCredits = myIndex !== -1 ? list[myIndex].totalCredits : (pr ? pr.totalCredits : 0);
+        var sum = list.reduce(function(a, b){ return a + (b.totalCredits || 0); }, 0);
+        var avg = Math.round(sum / total);
+        var top = list.reduce(function(m, item){ return Math.max(m, item.totalCredits || 0); }, 0);
+        var maxBar = Math.max(top, myCredits, avg, 1);
+
+        function barRow(label, value, isMe){
+          var pct = Math.max(3, Math.round((value / maxBar) * 100));
+          return '<div class="gm-bar-row"><span class="gm-bar-label">' + label + '</span>' +
+            '<span class="gm-bar-track"><span class="gm-bar-fill' + (isMe ? ' me' : '') + '" style="width:' + pct + '%;"></span></span>' +
+            '<span class="gm-bar-val">' + value + '</span></div>';
+        }
+
+        // league distribution
+        var counts = {};
+        LEAGUES.forEach(function(l){ counts[l.id] = 0; });
+        list.forEach(function(item){ var lg = getLeague(item.totalCredits); counts[lg.id] = (counts[lg.id] || 0) + 1; });
+        var maxCount = Math.max.apply(null, LEAGUES.map(function(l){ return counts[l.id]; }).concat([1]));
+        var myLeagueId = getLeague(myCredits).id;
+        var distRows = LEAGUES.slice().reverse().map(function(l){
+          var c = counts[l.id] || 0;
+          var pct = Math.max(c ? 4 : 0, Math.round((c / maxCount) * 100));
+          var isMe = l.id === myLeagueId;
+          return '<div class="gm-league-dist-row' + (isMe ? ' me' : '') + '">' +
+            '<span class="gm-ld-label">' + l.emoji + ' ' + l.name + '</span>' +
+            '<span class="gm-ld-track"><span class="gm-ld-fill" style="width:' + pct + '%;"></span></span>' +
+            '<span class="gm-ld-count">' + c + '명</span></div>';
+        }).join('');
+
+        bodyEl.innerHTML =
+          '<div class="gm-rank-hero">' +
+            '<div class="gm-rank-num">전체 ' + total + '명 중 ' + myRank + '위</div>' +
+            '<div class="gm-rank-sub">' + escapeHtml(pr ? pr.nickname : '') + '님의 현재 순위예요</div>' +
+            '<span class="gm-rank-pct">상위 ' + percentile + '%</span>' +
+          '</div>' +
+          '<div class="gm-stat-block">' +
+            '<div class="gm-stat-block-title">' + CREDIT_NAME + ' 비교</div>' +
+            barRow('나', myCredits, true) +
+            barRow('평균', avg, false) +
+            barRow('1위', top, false) +
+          '</div>' +
+          '<div class="gm-stat-block">' +
+            '<div class="gm-stat-block-title">리그별 인원 분포 (나: ' + getLeague(myCredits).emoji + ' ' + getLeague(myCredits).name + ')</div>' +
+            distRows +
+          '</div>';
+
+        loadingEl.remove();
+        bodyEl.classList.remove('gm-hidden');
+      } catch (err){
+        console.error('[gamify] openMyStats render failed:', err);
+        loadingEl.textContent = '통계 화면을 그리는 중 오류가 났어요: ' + err.message;
+      }
     });
   }
 
@@ -489,6 +629,18 @@
     return div.innerHTML;
   }
 
+  // 버튼 클릭 핸들러를 감싸서, 예상치 못한 오류가 나도 '아무 반응 없음'이 아니라
+  // 눈에 보이는 토스트 메시지로 알려준다 (개발자도구 없이도 원인 파악이 쉬워짐).
+  function safeCall(fn){
+    return function(){
+      try { return fn.apply(this, arguments); }
+      catch (err){
+        console.error('[gamify]', err);
+        toast('오류가 발생했어요: ' + (err && err.message ? err.message : String(err)));
+      }
+    };
+  }
+
   // ---------------------------------------------------------------------
   // header bar
   // ---------------------------------------------------------------------
@@ -512,14 +664,20 @@
       return;
     }
     var league = getLeague(pr.totalCredits);
+    var statsBtn = isCloudEnabled()
+      ? '<span class="gm-pill gm-league" id="gm-bar-stats" title="전체 순위에서 내 위치 보기">📊 내 순위</span>'
+      : '';
     bar.innerHTML =
       '<button class="gm-nick" id="gm-bar-nick"><span class="gm-avatar">' + escapeHtml(pr.nickname.charAt(0)) + '</span>' + escapeHtml(pr.nickname) + ' ▾</button>' +
       '<span class="gm-spacer"></span>' +
+      statsBtn +
       '<span class="gm-pill gm-league" id="gm-bar-league" title="리그 · 클릭해서 배지 보기">' + league.emoji + ' ' + league.name + '</span>' +
       '<span class="gm-pill">' + CREDIT_ICON + ' <span class="gm-credit-num" id="gm-bar-credit">' + pr.totalCredits + '</span></span>' +
       '<span class="gm-pill">🔥 ' + pr.streak.current + '일</span>';
-    bar.querySelector('#gm-bar-nick').addEventListener('click', openProfileSwitcher);
-    bar.querySelector('#gm-bar-league').addEventListener('click', openBadgeList);
+    bar.querySelector('#gm-bar-nick').addEventListener('click', safeCall(openProfileSwitcher));
+    bar.querySelector('#gm-bar-league').addEventListener('click', safeCall(openBadgeList));
+    var statsEl = bar.querySelector('#gm-bar-stats');
+    if (statsEl) statsEl.addEventListener('click', safeCall(openMyStats));
   }
 
   function bumpCreditDisplay(newTotal){
@@ -681,6 +839,7 @@
   function boot(){
     injectStyles();
     renderBar();
+    console.log('[gamify] cloud sync:', isCloudEnabled() ? ('ON (' + getCloudEndpoint() + ')') : 'OFF (기기별 저장만 사용)');
     if (!store.activeNickname){
       setTimeout(promptNickname, 300);
     } else if (isCloudEnabled()){
@@ -701,7 +860,9 @@
     openBadgeList: openBadgeList,
     openCloudSettings: openCloudSettings,
     openLeaderboard: openLeaderboard,
+    openMyStats: openMyStats,
     isCloudEnabled: isCloudEnabled,
+    toast: toast,
     CREDIT_NAME: CREDIT_NAME
   };
 

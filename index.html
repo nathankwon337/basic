@@ -507,6 +507,9 @@
       }
       var leagueEmoji = { bronze:'🥉', silver:'🥈', gold:'🥇', sapphire:'💎', diamond:'👑' };
       var leagueName = { bronze:'브론즈', silver:'실버', gold:'골드', sapphire:'사파이어', diamond:'다이아몬드' };
+      var statsBtn = (window.Gamify.isCloudEnabled && Gamify.isCloudEnabled())
+        ? '<button class="dash-switch" id="dash-stats-btn" style="margin-left:8px;">📊 내 순위 보기</button>'
+        : '';
       box.innerHTML =
         '<div class="dash-nick"><span class="dash-avatar">' + pr.nickname.charAt(0) + '</span>' + pr.nickname + '님</div>' +
         '<div class="dash-divider"></div>' +
@@ -514,9 +517,11 @@
         '<div class="dash-stat"><span class="dash-label">보유 캐럿</span><span class="dash-value">💎 ' + pr.totalCredits + '</span></div>' +
         '<div class="dash-stat"><span class="dash-label">연속 학습</span><span class="dash-value">🔥 ' + pr.streak.current + '일</span></div>' +
         '<div class="dash-stat"><span class="dash-label">획득 배지</span><span class="dash-value">🏅 ' + pr.badges.length + '개</span></div>' +
-        '<button class="dash-switch" id="dash-switch-btn">프로필 전환</button>';
+        '<button class="dash-switch" id="dash-switch-btn">프로필 전환</button>' + statsBtn;
       var switchBtn = document.getElementById('dash-switch-btn');
       if (switchBtn) switchBtn.addEventListener('click', function(){ Gamify.openProfileSwitcher(); });
+      var statsBtnEl = document.getElementById('dash-stats-btn');
+      if (statsBtnEl) statsBtnEl.addEventListener('click', function(){ Gamify.openMyStats(); });
     }
     if (document.readyState === 'loading'){
       document.addEventListener('DOMContentLoaded', function(){ setTimeout(renderDash, 60); });

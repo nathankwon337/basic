@@ -205,13 +205,21 @@
     display:flex; align-items:center; justify-content:center; text-align:center;
     cursor:pointer;
     user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
     box-shadow:0 4px 0 var(--border);
     transition:background .15s ease, border-color .15s ease, color .15s ease, transform .1s ease, box-shadow .1s ease, opacity .25s ease;
     overflow:hidden;
     word-break:keep-all;
     overflow-wrap:break-word;
   }
-  .match-card:hover:not(.is-solved):not(.is-selected):not(.is-correct):not(.is-wrong){ border-color:var(--primary); }
+  /* Only apply the hover outline on devices that actually have a mouse.
+     On touch devices, a :hover rule like this makes the FIRST tap merely
+     "arm" the hover state instead of firing the click — the classic
+     "have to tap twice" mobile bug. Scoping it to (hover: hover) fixes that. */
+  @media (hover:hover) and (pointer:fine){
+    .match-card:hover:not(.is-solved):not(.is-selected):not(.is-correct):not(.is-wrong){ border-color:var(--primary); }
+  }
   .match-card:active:not(.is-solved){ transform:translateY(3px); box-shadow:0 1px 0 var(--border); }
 
   .match-card.is-selected{

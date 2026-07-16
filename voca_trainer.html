@@ -226,6 +226,8 @@
 </style>
 </head>
 <body>
+<script src="gamify_config.js"></script>
+<script src="gamify.js"></script>
 <div class="app">
   <header class="top">
     <div class="title-group">
@@ -898,7 +900,7 @@
   doneMenuBtn.addEventListener('click', showModuleMenu);
   doneRetryBtn.addEventListener('click', function(){ if (doneRetryHandler) doneRetryHandler(); });
 
-  function showDone(title, stats, retryHandler){
+  function showDone(title, stats, retryHandler, gamifyInfo){
     document.getElementById('done-title').textContent = title;
     var statsEl = document.getElementById('done-stats');
     statsEl.innerHTML = '';
@@ -910,6 +912,16 @@
     });
     doneRetryHandler = retryHandler;
     showPanel('module-done-panel');
+
+    if (window.Gamify && gamifyInfo){
+      Gamify.reportResult({
+        game: 'voca',
+        accuracy: (typeof gamifyInfo.accuracy === 'number') ? gamifyInfo.accuracy : null,
+        comboMax: gamifyInfo.comboMax || 0,
+        correctCount: gamifyInfo.correctCount,
+        totalCount: gamifyInfo.totalCount
+      });
+    }
   }
 
   // ================= MODULE 1: FLASHCARD =================
@@ -999,7 +1011,8 @@
   document.getElementById('fc-next-btn').addEventListener('click', function(){
     if (fcIndex < fcOrder.length - 1){ fcIndex++; renderFlashcard(); }
     else {
-      showDone('카드 학습 완료! 📇', [{label:'학습한 단어', value: fcOrder.length + '개'}], startFlashcard);
+      showDone('카드 학습 완료! 📇', [{label:'학습한 단어', value: fcOrder.length + '개'}], startFlashcard,
+        { accuracy: null, totalCount: fcOrder.length });
     }
   });
 
@@ -1101,7 +1114,11 @@
               showDone('동의어 매칭 완료! 🔗', [
                 {label:'전체 단어', value: matchTotalWords + '개'},
                 {label:'실수 횟수', value: matchMistakes + '회'}
-              ], startMatch);
+              ], startMatch, {
+                accuracy: (matchTotalWords + matchMistakes) ? (matchTotalWords / (matchTotalWords + matchMistakes)) : 1,
+                correctCount: matchTotalWords,
+                totalCount: matchTotalWords + matchMistakes
+              });
             } else { loadMatchBatch(); }
           }, 450);
         }
@@ -1226,7 +1243,11 @@
       showDone('빈칸 채우기 완료! ✏️', [
         {label:'정답', value: clozeScore + ' / ' + clozeItems.length},
         {label:'정확도', value: Math.round((clozeScore/clozeItems.length)*100) + '%'}
-      ], startCloze);
+      ], startCloze, {
+        accuracy: clozeItems.length ? (clozeScore / clozeItems.length) : 0,
+        correctCount: clozeScore,
+        totalCount: clozeItems.length
+      });
     } else { loadClozeQuestion(); }
   });
 
@@ -1311,12 +1332,16 @@
       showDone('혼동 어휘 퀴즈 완료! ⚠️', [
         {label:'정답', value: confScore + ' / ' + confItems.length},
         {label:'정확도', value: Math.round((confScore/confItems.length)*100) + '%'}
-      ], startConfusable);
+      ], startConfusable, {
+        accuracy: confItems.length ? (confScore / confItems.length) : 0,
+        correctCount: confScore,
+        totalCount: confItems.length
+      });
     } else { loadConfQuestion(); }
   });
 
   // ================= MODULE 5: REVIEW =================
-  var reviewList = [], reviewIndex = 0, reviewRevealed = false;
+  var reviewList = [], reviewIndex = 0, reviewRevealed = false, reviewGoodCount = 0;
   var reviewWordEl = document.getElementById('review-word');
   var reviewPhoneticEl = document.getElementById('review-phonetic');
   var reviewAnswerBlock = document.getElementById('review-answer-block');
@@ -1335,6 +1360,7 @@
       return;
     }
     reviewIndex = 0;
+    reviewGoodCount = 0;
     showPanel('review-panel');
     loadReviewCard();
   }
@@ -1367,13 +1393,18 @@
     btn.addEventListener('click', function(){
       if (!reviewRevealed) return;
       var q = parseInt(btn.dataset.q, 10);
+      if (q >= 3) reviewGoodCount++;
       updateSrs(reviewList[reviewIndex].word, q);
       reviewIndex++;
       if (reviewIndex >= reviewList.length){
         showDone('오늘의 복습 완료! 🔁', [
           {label:'복습한 단어', value: reviewList.length + '개'},
           {label:'다음 복습', value:'기억 정도에 따라 자동 예약됨'}
-        ], startReview);
+        ], startReview, {
+          accuracy: reviewList.length ? (reviewGoodCount / reviewList.length) : 0,
+          correctCount: reviewGoodCount,
+          totalCount: reviewList.length
+        });
       } else { loadReviewCard(); }
     });
   });

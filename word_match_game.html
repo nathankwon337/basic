@@ -326,6 +326,8 @@
 </style>
 </head>
 <body>
+<script src="gamify_config.js"></script>
+<script src="gamify.js"></script>
 <div class="app">
   <header class="top">
     <div class="title-group">
@@ -1148,6 +1150,16 @@ bring | 가져오다"></textarea>
     var attempts = solvedTotal + mistakes;
     var accuracy = attempts ? Math.round((solvedTotal / attempts) * 100) : 100;
     statAccuracy.textContent = accuracy + '%';
+
+    if (window.Gamify){
+      Gamify.reportResult({
+        game: 'word_match',
+        accuracy: accuracy / 100,
+        comboMax: 0,
+        correctCount: solvedTotal,
+        totalCount: attempts
+      });
+    }
 
     if (goalEnabled){
       var diff = goalSeconds - totalElapsed;

@@ -187,6 +187,36 @@
   .game-card.voca-card .play-pill{ background:#6C4AB6; }
   .game-card:active .play-pill{ transform:scale(0.98); }
 
+  .dash{
+    background:var(--paper);
+    border:1px solid var(--border);
+    border-radius:18px;
+    padding:20px 24px;
+    margin-bottom:32px;
+    display:flex;
+    align-items:center;
+    gap:22px;
+    flex-wrap:wrap;
+    box-shadow:0 1px 2px rgba(30,42,68,0.04), 0 8px 24px -12px rgba(30,42,68,0.10);
+  }
+  .dash .dash-empty{ font-size:13.5px; color:var(--ink-soft); }
+  .dash .dash-empty button{
+    appearance:none; border:1px solid var(--border); background:#fff; color:var(--primary);
+    font-family:'Inter',sans-serif; font-weight:700; font-size:13px; padding:8px 14px; border-radius:9px;
+    cursor:pointer; margin-left:10px;
+  }
+  .dash-stat{ display:flex; flex-direction:column; gap:2px; }
+  .dash-stat .dash-label{ font-size:11.5px; color:var(--ink-soft); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+  .dash-stat .dash-value{ font-size:19px; font-weight:700; color:var(--ink); font-family:'Space Grotesk', monospace; }
+  .dash-nick{ display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; }
+  .dash-avatar{ width:38px; height:38px; border-radius:50%; background:var(--amber); color:#5A3B0B; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; }
+  .dash-divider{ width:1px; align-self:stretch; background:var(--border); }
+  .dash-switch{
+    appearance:none; border:1px solid var(--border); background:#fff; color:var(--ink-soft);
+    font-family:'Inter',sans-serif; font-weight:600; font-size:12.5px; padding:7px 12px; border-radius:9px; cursor:pointer; margin-left:auto;
+  }
+  .dash-switch:hover{ border-color:var(--primary); color:var(--primary); }
+
   @media (max-width:1000px){
     .game-grid{ grid-template-columns:1fr 1fr; }
   }
@@ -211,12 +241,18 @@
 </style>
 </head>
 <body>
+<script src="gamify_config.js"></script>
+<script src="gamify.js"></script>
 <div class="app">
   <header class="top">
     <div class="eyebrow">Learning games</div>
     <h1>어떤 게임을 해볼까요?</h1>
     <p>외국어 문장과 단어를 재미있게 익히는 네 가지 게임 중 하나를 골라보세요.</p>
   </header>
+
+  <div class="dash" id="dash-box">
+    <div class="dash-empty">아직 시작 전이에요 — 닉네임을 정하면 캐럿·리그·스트릭이 여기 표시돼요.<button id="dash-start-btn">시작하기</button></div>
+  </div>
 
   <div class="game-grid">
     <div class="game-card-wrap">
@@ -468,6 +504,54 @@
     </div>
   </div>
 </div>
+<script>
+  (function(){
+    function renderDash(){
+      var box = document.getElementById('dash-box');
+      if (!box || !window.Gamify) return;
+      var pr = Gamify.getActiveProfile();
+      if (!pr){
+        box.innerHTML = '<div class="dash-empty">아직 시작 전이에요 — 닉네임을 정하면 캐럿·리그·스트릭이 여기 표시돼요.<button id="dash-start-btn">시작하기</button></div>';
+        var btn = document.getElementById('dash-start-btn');
+        if (btn) btn.addEventListener('click', function(){
+          var nickBtn = document.getElementById('gm-bar-nick');
+          if (nickBtn) nickBtn.click();
+        });
+        return;
+      }
+      var leagueEmoji = { bronze:'🥉', silver:'🥈', gold:'🥇', sapphire:'💎', diamond:'👑' };
+      var leagueName = { bronze:'브론즈', silver:'실버', gold:'골드', sapphire:'사파이어', diamond:'다이아몬드' };
+      var statsBtn = (window.Gamify.isCloudEnabled && Gamify.isCloudEnabled())
+        ? '<button class="dash-switch" id="dash-stats-btn" style="margin-left:8px;">📊 내 순위 보기</button>'
+        : '';
+      box.innerHTML =
+        '<div class="dash-nick"><span class="dash-avatar">' + pr.nickname.charAt(0) + '</span>' + pr.nickname + '님</div>' +
+        '<div class="dash-divider"></div>' +
+        '<div class="dash-stat"><span class="dash-label">리그</span><span class="dash-value">' + (leagueEmoji[pr.league] || '🥉') + ' ' + (leagueName[pr.league] || '브론즈') + '</span></div>' +
+        '<div class="dash-stat"><span class="dash-label">보유 캐럿</span><span class="dash-value">💎 ' + pr.totalCredits + '</span></div>' +
+        '<div class="dash-stat"><span class="dash-label">연속 학습</span><span class="dash-value">🔥 ' + pr.streak.current + '일</span></div>' +
+        '<div class="dash-stat"><span class="dash-label">획득 배지</span><span class="dash-value">🏅 ' + pr.badges.length + '개</span></div>' +
+        '<button class="dash-switch" id="dash-switch-btn">프로필 전환</button>' + statsBtn;
+      var switchBtn = document.getElementById('dash-switch-btn');
+      if (switchBtn) switchBtn.addEventListener('click', function(){
+        try { Gamify.openProfileSwitcher(); }
+        catch (err) { console.error('[dash]', err); if (Gamify.toast) Gamify.toast('오류: ' + err.message); }
+      });
+      var statsBtnEl = document.getElementById('dash-stats-btn');
+      if (statsBtnEl) statsBtnEl.addEventListener('click', function(){
+        try { Gamify.openMyStats(); }
+        catch (err) { console.error('[dash]', err); if (Gamify.toast) Gamify.toast('오류: ' + err.message); }
+      });
+    }
+    if (document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', function(){ setTimeout(renderDash, 60); });
+    } else {
+      setTimeout(renderDash, 60);
+    }
+    window.addEventListener('storage', renderDash);
+    document.addEventListener('click', function(){ setTimeout(renderDash, 300); });
+  })();
+</script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {

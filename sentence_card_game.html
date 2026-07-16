@@ -777,6 +777,8 @@
 </style>
 </head>
 <body>
+<script src="gamify_config.js"></script>
+<script src="gamify.js"></script>
 <div class="app">
   <header class="top">
     <div class="title-group">
@@ -1899,6 +1901,16 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
 
     renderHighlights();
     renderComparison(totalSeconds, avgSeconds);
+
+    if (window.Gamify){
+      Gamify.reportResult({
+        game: 'sentence',
+        accuracy: order.length ? (score / order.length) : 0,
+        comboMax: bestStreak,
+        correctCount: score,
+        totalCount: order.length
+      });
+    }
 
     previousRunStats = {
       score: score,

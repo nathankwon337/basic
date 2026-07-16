@@ -303,6 +303,8 @@
 </style>
 </head>
 <body>
+<script src="gamify_config.js"></script>
+<script src="gamify.js"></script>
 <div class="app">
   <header class="top">
     <div class="title-group">
@@ -1286,6 +1288,16 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
     statTotalTime.textContent = formatMinSec(totalElapsed);
     statAvgScore.textContent = (scoreCount ? Math.round(scoreSum / scoreCount) : 0) + '%';
     statAvgAttempts.textContent = (order.length ? (totalAttempts / order.length).toFixed(1) : '0') + '회';
+
+    if (window.Gamify){
+      Gamify.reportResult({
+        game: 'speaking',
+        accuracy: scoreCount ? (scoreSum / scoreCount / 100) : 0,
+        comboMax: 0,
+        correctCount: passCount,
+        totalCount: order.length
+      });
+    }
   }
 
   quitBtn.addEventListener('click', function(){

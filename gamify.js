@@ -1,6 +1,7 @@
 /*!
  * gamify.js — 공통 동기부여(게이미피케이션) 모듈
- * 서버/DB 없이 브라우저 localStorage만으로 동작합니다.
+ * 기본은 브라우저 localStorage만으로 동작하며, 원할 경우 Google 스프레드시트(Apps Script 웹앱)를
+ * 얹어 기기 간 동기화 + 전체 사용자 리더보드까지 지원합니다(선택 사항, 미설정 시 완전히 기존과 동일하게 동작).
  * 문장 카드 맞추기 / 단어 짝맞추기 / 말하기 연습 / VOCA 트레이닝 4개 게임에서 공통으로 불러 씁니다.
  *
  * 사용법 (각 게임 HTML 맨 아래, </body> 직전에 한 줄만 추가):
@@ -14,11 +15,23 @@
  *     correctCount: 12,    // 이번 세트 정답 개수(없으면 생략 가능)
  *     totalCount: 14       // 이번 세트 전체 문항 수(없으면 생략 가능)
  *   });
+ *
+ * 클라우드 동기화(선택): 아래 DEFAULT_CLOUD_ENDPOINT에 Apps Script 웹앱 URL을 한 번만
+ * 넣어두면, 접속하는 모든 사람에게 자동으로 적용됩니다(각자 설정할 필요 없음).
+ * 프로필 전환 메뉴의 "클라우드 동기화 설정"은 이 기본값을 개인적으로 덮어쓰거나
+ * 끄고 싶을 때만 쓰는 선택 기능입니다.
  */
 (function (global) {
   'use strict';
 
+  // ▼▼▼ 운영자가 한 번만 채워주세요 ▼▼▼
+  // Apps Script 배포 후 나오는 '.../exec'로 끝나는 웹앱 URL을 여기에 붙여넣으면
+  // 모든 방문자에게 클라우드 동기화가 자동으로 켜집니다. 비워두면(기본값) 기기별 저장만 동작합니다.
+  var DEFAULT_CLOUD_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzdD2odP3YSXtkehAEPC6R3pvaXVg_8uupBBlkBOGMumEWRzeMzly1iJuTYyyAYbQzK/exec';
+  // ▲▲▲ 운영자가 한 번만 채워주세요 ▲▲▲
+
   var STORAGE_KEY = 'lingo_gamify_v1';
+  var CLOUD_KEY = 'lingo_gamify_cloud_endpoint';
   var CREDIT_NAME = '캐럿';
   var CREDIT_ICON = '💎';
 
@@ -107,6 +120,59 @@
   }
 
   var store = loadStore();
+
+  // ---------------------------------------------------------------------
+  // cloud sync (optional) — Google Apps Script 웹앱 엔드포인트
+  // ---------------------------------------------------------------------
+  // 개인 설정이 없으면 사이트 공통 기본값(DEFAULT_CLOUD_ENDPOINT)을 쓴다.
+  // 개인이 "동기화 끄기"를 누르면 localStorage에 '__off__' 표시를 남겨 기본값보다 우선한다.
+  function getCloudEndpoint(){
+    var personal;
+    try { personal = localStorage.getItem(CLOUD_KEY); } catch (err) { personal = null; }
+    if (personal === '__off__') return '';
+    if (personal) return personal;
+    return DEFAULT_CLOUD_ENDPOINT || '';
+  }
+  function setCloudEndpoint(url){
+    try {
+      if (url) localStorage.setItem(CLOUD_KEY, url);
+      else localStorage.setItem(CLOUD_KEY, '__off__');
+    } catch (err) { /* ignore */ }
+  }
+  function isUsingSiteDefault(){
+    var personal;
+    try { personal = localStorage.getItem(CLOUD_KEY); } catch (err) { personal = null; }
+    return !personal && !!DEFAULT_CLOUD_ENDPOINT;
+  }
+  function isCloudEnabled(){ return !!getCloudEndpoint(); }
+
+  function cloudPush(profile){
+    var url = getCloudEndpoint();
+    if (!url) return;
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight on Apps Script
+      body: JSON.stringify(profile)
+    }).catch(function(){ /* offline/오류 시 조용히 무시 — 다음 저장 때 다시 시도됨 */ });
+  }
+
+  function cloudPull(nickname, cb){
+    var url = getCloudEndpoint();
+    if (!url){ cb(null); return; }
+    fetch(url + '?action=get&nickname=' + encodeURIComponent(nickname))
+      .then(function(r){ return r.json(); })
+      .then(function(res){ cb(res && res.found ? res.data : null); })
+      .catch(function(){ cb(null); });
+  }
+
+  function cloudLeaderboard(cb){
+    var url = getCloudEndpoint();
+    if (!url){ cb(null); return; }
+    fetch(url + '?action=list')
+      .then(function(r){ return r.json(); })
+      .then(function(res){ cb(res && res.list ? res.list : []); })
+      .catch(function(){ cb(null); });
+  }
 
   function activeProfile(){
     if (!store.activeNickname) return null;
@@ -229,6 +295,7 @@
       closeOverlay(overlay);
       renderBar();
       toast(name + '님, 환영해요! 학습을 시작해볼까요? 🎉');
+      syncFromCloudThenPush(name);
     }
     overlay.querySelector('#gm-nick-ok').addEventListener('click', submit);
     input.addEventListener('keydown', function(e){ if (e.key === 'Enter') submit(); });
@@ -252,7 +319,8 @@
       '<div class="gm-link-row">' +
         '<a id="gm-export-link">내 기록 내보내기</a> · ' +
         '<a id="gm-import-link">기록 가져오기</a> · ' +
-        '<a id="gm-badges-link">배지 보기</a>' +
+        '<a id="gm-badges-link">배지 보기</a><br>' +
+        '<a id="gm-cloud-link">☁️ 클라우드 동기화 설정</a>' + (isCloudEnabled() ? ' · <a id="gm-board-link">🏆 전체 순위 보기</a>' : '') +
       '</div>' +
       '<input type="file" id="gm-import-file" accept="application/json" class="gm-hidden">';
     var overlay = openOverlay(html);
@@ -263,6 +331,7 @@
         closeOverlay(overlay);
         renderBar();
         toast(row.getAttribute('data-name') + '님으로 전환했어요.');
+        syncFromCloudThenPush(row.getAttribute('data-name'));
       });
     });
     overlay.querySelector('#gm-new-profile').addEventListener('click', function(){
@@ -281,6 +350,15 @@
       closeOverlay(overlay);
       openBadgeList();
     });
+    overlay.querySelector('#gm-cloud-link').addEventListener('click', function(){
+      closeOverlay(overlay);
+      openCloudSettings();
+    });
+    var boardLink = overlay.querySelector('#gm-board-link');
+    if (boardLink) boardLink.addEventListener('click', function(){
+      closeOverlay(overlay);
+      openLeaderboard();
+    });
   }
 
   function openBadgeList(){
@@ -297,6 +375,79 @@
       '<button class="gm-btn gm-ghost" id="gm-badge-close">닫기</button>';
     var overlay = openOverlay(html);
     overlay.querySelector('#gm-badge-close').addEventListener('click', function(){ closeOverlay(overlay); });
+  }
+
+  function openCloudSettings(){
+    var current = getCloudEndpoint();
+    var usingDefault = isUsingSiteDefault();
+    var statusLine = usingDefault
+      ? '<p style="color:#3F9142;font-weight:600;">✅ 이 사이트는 기본적으로 클라우드 동기화가 켜져 있어요. 별도로 설정하지 않아도 자동으로 적용됩니다.</p>'
+      : (current
+          ? '<p style="color:#3F9142;font-weight:600;">✅ 개인 설정으로 클라우드 동기화가 켜져 있어요.</p>'
+          : '<p style="color:#8A93A8;">현재 이 기기에만 저장되고 있어요.</p>');
+    var html =
+      '<h3>☁️ 클라우드 동기화 설정</h3>' +
+      statusLine +
+      '<p>다른 주소를 쓰고 싶거나, 이 기기에서만 동기화를 끄고 싶을 때 아래에서 바꿀 수 있어요.</p>' +
+      '<input type="text" id="gm-cloud-input" placeholder="https://script.google.com/macros/s/.../exec" value="' + escapeHtml(current) + '">' +
+      '<button class="gm-btn" id="gm-cloud-save">이 주소로 저장하고 동기화</button>' +
+      '<button class="gm-btn gm-ghost" id="gm-cloud-clear">이 기기만 동기화 끄기</button>';
+    var overlay = openOverlay(html);
+    overlay.querySelector('#gm-cloud-save').addEventListener('click', function(){
+      var url = overlay.querySelector('#gm-cloud-input').value.trim();
+      if (!url){ toast('주소를 입력해주세요.'); return; }
+      setCloudEndpoint(url);
+      closeOverlay(overlay);
+      toast('클라우드 동기화를 설정했어요. 동기화하는 중...');
+      var pr = activeProfile();
+      if (pr) syncFromCloudThenPush(pr.nickname);
+    });
+    overlay.querySelector('#gm-cloud-clear').addEventListener('click', function(){
+      setCloudEndpoint('');
+      closeOverlay(overlay);
+      toast('이 기기에서는 동기화를 껐어요. 이제 이 브라우저에만 저장돼요.');
+    });
+  }
+
+  // 닉네임으로 로그인/전환할 때: 클라우드에 더 앞선 기록이 있으면 그것을 쓰고,
+  // 없으면 지금 가진(로컬) 기록을 클라우드에 올려 둔다. (last-write-wins 방식의 단순 병합)
+  function syncFromCloudThenPush(nickname){
+    if (!isCloudEnabled()) return;
+    cloudPull(nickname, function(remote){
+      var local = store.profiles[nickname];
+      var winner = local;
+      if (remote && (!local || remote.totalCredits >= local.totalCredits)){
+        winner = remote;
+      }
+      store.profiles[nickname] = winner;
+      saveStore(store);
+      if (store.activeNickname === nickname) renderBar();
+      cloudPush(winner);
+    });
+  }
+
+  function openLeaderboard(){
+    var html =
+      '<h3>🏆 전체 순위</h3>' +
+      '<p id="gm-board-loading">불러오는 중...</p>' +
+      '<div id="gm-board-list"></div>' +
+      '<button class="gm-btn gm-ghost" id="gm-board-close">닫기</button>';
+    var overlay = openOverlay(html);
+    overlay.querySelector('#gm-board-close').addEventListener('click', function(){ closeOverlay(overlay); });
+    cloudLeaderboard(function(list){
+      var loadingEl = overlay.querySelector('#gm-board-loading');
+      if (!list){ loadingEl.textContent = '순위를 불러오지 못했어요. 잠시 후 다시 시도해주세요.'; return; }
+      loadingEl.remove();
+      var pr = activeProfile();
+      var rows = list.slice(0, 20).map(function(item, idx){
+        var lg = getLeague(item.totalCredits);
+        var mine = pr && item.nickname === pr.nickname;
+        return '<div class="gm-profile-row' + (mine ? ' active' : '') + '">' +
+          '<span>' + (idx + 1) + '. ' + lg.emoji + ' ' + escapeHtml(item.nickname) + '</span>' +
+          '<span>' + item.totalCredits + ' ' + CREDIT_ICON + '</span></div>';
+      }).join('');
+      overlay.querySelector('#gm-board-list').innerHTML = rows || '<p>아직 기록이 없어요.</p>';
+    });
   }
 
   function exportData(){
@@ -480,8 +631,8 @@
     if ((pr.speakingHighCount || 0) >= 10) unlock('speaking_ace');
 
     saveStore(store);
+    cloudPush(pr);
 
-    // ---- UI feedback ----
     if (earned > 0) bumpCreditDisplay(pr.totalCredits);
     else renderBar();
 
@@ -532,6 +683,8 @@
     renderBar();
     if (!store.activeNickname){
       setTimeout(promptNickname, 300);
+    } else if (isCloudEnabled()){
+      syncFromCloudThenPush(store.activeNickname);
     }
   }
 
@@ -546,6 +699,9 @@
     getActiveProfile: activeProfile,
     openProfileSwitcher: openProfileSwitcher,
     openBadgeList: openBadgeList,
+    openCloudSettings: openCloudSettings,
+    openLeaderboard: openLeaderboard,
+    isCloudEnabled: isCloudEnabled,
     CREDIT_NAME: CREDIT_NAME
   };
 

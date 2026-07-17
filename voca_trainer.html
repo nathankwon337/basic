@@ -1113,11 +1113,13 @@
     else if ((side==='left' && card.id===matchSelectedLeft) || (side==='right' && card.id===matchSelectedRight)) cls += ' is-selected';
     el.className = cls;
     el.textContent = card.text;
-    var lp = (side === 'left') ? DictLookup.attach(el, function(){ return card.text; }, getDictSettings) : null;
-    el.addEventListener('click', function(){
-      if (lp && lp.consumeLongPress()) return;
-      onMatchCardClick(card, side);
-    });
+    if (side === 'left'){
+      DictLookup.attach(el, function(){ return card.text; }, getDictSettings, function(){
+        onMatchCardClick(card, side);
+      });
+    } else {
+      el.addEventListener('click', function(){ onMatchCardClick(card, side); });
+    }
     return el;
   }
 

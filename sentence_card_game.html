@@ -1690,9 +1690,7 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
     el.className = 'word-card';
     el.textContent = tok.text;
     el.dataset.id = tok.id;
-    var lp = DictLookup.attach(el, function(){ return tok.text; }, getDictSettings);
-    el.addEventListener('click', function(){
-      if (lp.consumeLongPress()) return;
+    DictLookup.attach(el, function(){ return tok.text; }, getDictSettings, function(){
       if (awaitingNext) return;
       bank = bank.filter(function(t){ return t.id !== tok.id; });
       answer.push(tok);

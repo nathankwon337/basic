@@ -1099,11 +1099,13 @@ bring | 가져오다"></textarea>
     else if ((side === 'left' && card.id === selectedLeftId) || (side === 'right' && card.id === selectedRightId)) cls += ' is-selected';
     el.className = cls;
     el.textContent = card.text;
-    var lp = (side === 'left') ? DictLookup.attach(el, function(){ return card.text; }, getDictSettings) : null;
-    el.addEventListener('click', function(){
-      if (lp && lp.consumeLongPress()) return;
-      onCardClick(card, side);
-    });
+    if (side === 'left'){
+      DictLookup.attach(el, function(){ return card.text; }, getDictSettings, function(){
+        onCardClick(card, side);
+      });
+    } else {
+      el.addEventListener('click', function(){ onCardClick(card, side); });
+    }
     return el;
   }
 

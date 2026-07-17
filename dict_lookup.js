@@ -196,14 +196,21 @@
   // plain tap already does something else, e.g. select or add-to-answer).
   //   getWord()      -> string, the word/phrase to look up
   //   getSettings()  -> { enabled: bool, provider: string, langCode: string }
-  // Returns { consumeLongPress() } — the element's own click/tap handler
-  // should call this first and bail out if it returns true, so long-pressing
-  // doesn't also trigger the card's normal action.
-  function attach(el, getWord, getSettings) {
+  //   onTap()        -> optional. Called on a plain tap (no long-press, no
+  //                     drag). Prefer this over the old consumeLongPress()
+  //                     pattern — some mobile browsers don't reliably fire a
+  //                     synthetic "click" right after a long touch-and-hold,
+  //                     which made a plain tap immediately following a
+  //                     dictionary lookup silently do nothing. Handling the
+  //                     tap directly off pointerup sidesteps that entirely.
+  // Returns { consumeLongPress() } kept for backward compatibility with any
+  // code still checking it from its own separate "click" handler.
+  function attach(el, getWord, getSettings, onTap) {
     markNonSelectable(el);
     var timer = null;
     var startX = 0,
       startY = 0;
+    var moved = false;
     var longPressFired = false;
 
     function cancelTimer() {
@@ -215,29 +222,36 @@
     }
 
     el.addEventListener("pointerdown", function (e) {
-      var settings = getSettings ? getSettings() : {};
-      if (!settings.enabled) return;
       if (e.pointerType === "mouse" && e.button !== 0) return;
       startX = e.clientX;
       startY = e.clientY;
+      moved = false;
+      longPressFired = false;
       cancelTimer();
+      var settings = getSettings ? getSettings() : {};
+      if (!settings.enabled) return;
       el.classList.add("dict-lookup-armed");
       timer = setTimeout(function () {
         timer = null;
         longPressFired = true;
         el.classList.remove("dict-lookup-armed");
-        var s = getSettings ? getSettings() : {};
-        showPopover(getWord(), el, s.provider, s.langCode);
+        showPopover(getWord(), el, settings.provider, settings.langCode);
       }, LONG_PRESS_MS);
     });
 
     el.addEventListener("pointermove", function (e) {
-      if (!timer) return;
+      if (moved) return;
       if (Math.abs(e.clientX - startX) > MOVE_TOLERANCE || Math.abs(e.clientY - startY) > MOVE_TOLERANCE) {
+        moved = true;
         cancelTimer();
       }
     });
-    el.addEventListener("pointerup", cancelTimer);
+
+    el.addEventListener("pointerup", function (e) {
+      var wasLongPress = longPressFired;
+      cancelTimer();
+      if (!wasLongPress && !moved && onTap) onTap(e);
+    });
     el.addEventListener("pointercancel", cancelTimer);
 
     return {
@@ -258,7 +272,27 @@
   // callout to pop up alongside our dictionary popover.
   function attachTap(el, getWord, getSettings) {
     markNonSelectable(el);
-    el.addEventListener("click", function () {
+    var startX = 0,
+      startY = 0;
+    var moved = false;
+
+    el.addEventListener("pointerdown", function (e) {
+      if (e.pointerType === "mouse" && e.button !== 0) {
+        moved = true; // ignore right-click/middle-click drags
+        return;
+      }
+      startX = e.clientX;
+      startY = e.clientY;
+      moved = false;
+    });
+    el.addEventListener("pointermove", function (e) {
+      if (moved) return;
+      if (Math.abs(e.clientX - startX) > MOVE_TOLERANCE || Math.abs(e.clientY - startY) > MOVE_TOLERANCE) {
+        moved = true;
+      }
+    });
+    el.addEventListener("pointerup", function () {
+      if (moved) return;
       var s = getSettings ? getSettings() : {};
       if (!s.enabled) return;
       showPopover(getWord(), el, s.provider, s.langCode);

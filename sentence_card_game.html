@@ -521,8 +521,8 @@
     position:fixed;
     z-index:10000;
     display:none;
-    align-items:center;
-    gap:12px;
+    flex-direction:column;
+    gap:6px;
     background:var(--ink);
     color:#fff;
     padding:10px 14px;
@@ -531,6 +531,11 @@
     font-size:13.5px;
     box-shadow:0 10px 24px -8px rgba(30,42,68,0.45);
     max-width:min(320px, calc(100vw - 16px));
+  }
+  .dict-popover-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
   }
   .dict-popover .dict-word{
     font-family:'Space Grotesk', monospace;
@@ -554,6 +559,11 @@
     flex-shrink:0;
   }
   .dict-popover .close-x:hover{ opacity:1; }
+  .dict-popover-note{
+    font-size:11.5px;
+    color:#C7CCDE;
+    line-height:1.4;
+  }
 
   .word-card.in-answer.flash-correct{
     background:var(--success);
@@ -1152,14 +1162,50 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
   }
 
   // ---------- external dictionary lookup (long-press on a word card) ----------
-  function getDictionaryUrl(word, provider){
+  // Naver switched to per-language subdomains after their 2018 redesign
+  // (en.dict.naver.com, de.dict.naver.com, ...), each using a hash-based
+  // search route. The old shared "search.nhn?dicQuery=" endpoint no longer
+  // carries the query through, so we route by language instead.
+  var NAVER_LANG_SUBDOMAIN = {
+    en: 'en', de: 'de', ja: 'ja', zh: 'zh', fr: 'fr', es: 'es', it: 'it',
+    ru: 'ru', pt: 'pt', vi: 'vi', th: 'th', id: 'id', ko: 'ko'
+  };
+
+  // Daum's dictionary (as opposed to its translator) simply doesn't have
+  // German or Spanish sub-dictionaries, so a German/Spanish query silently
+  // falls through to its English dictionary and returns a near-miss word.
+  var DAUM_UNSUPPORTED_LANGS = { de: true, es: true };
+
+  function getLangCode(){
+    return (pronounceLang || 'en-US').split('-')[0].toLowerCase();
+  }
+
+  // Returns { url, note } — note is a short explanation shown in the popover
+  // when we had to substitute a different dictionary than the one selected.
+  function getDictionaryUrl(word, provider, langCode){
     var q = encodeURIComponent(word);
+    var note = '';
+
+    if (provider === 'daum' && DAUM_UNSUPPORTED_LANGS[langCode]){
+      note = '다음사전은 이 언어를 지원하지 않아 네이버 사전으로 연결했어요.';
+      provider = 'naver';
+    }
+    if (provider === 'merriam' && langCode !== 'en'){
+      note = 'Merriam-Webster는 영어 전용이라 Google 정의 검색으로 연결했어요.';
+      provider = 'google';
+    }
+
     switch (provider){
-      case 'daum': return 'https://dic.daum.net/search.do?q=' + q;
-      case 'merriam': return 'https://www.merriam-webster.com/dictionary/' + q;
-      case 'google': return 'https://www.google.com/search?q=' + encodeURIComponent('define ' + word);
+      case 'daum':
+        return { url: 'https://dic.daum.net/search.do?q=' + q, note: note };
+      case 'merriam':
+        return { url: 'https://www.merriam-webster.com/dictionary/' + q, note: note };
+      case 'google':
+        return { url: 'https://www.google.com/search?q=' + encodeURIComponent('define ' + word), note: note };
       case 'naver':
-      default: return 'https://dict.naver.com/search.nhn?dicQuery=' + q;
+      default:
+        var sub = NAVER_LANG_SUBDOMAIN[langCode] || 'en';
+        return { url: 'https://' + sub + '.dict.naver.com/#/search?query=' + q, note: note };
     }
   }
 
@@ -1201,15 +1247,17 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
     if (!dictLookupEnabled) return;
     var cleaned = cleanWordForLookup(word);
     if (!cleaned) return;
-    var url = getDictionaryUrl(cleaned, dictProvider);
+    var result = getDictionaryUrl(cleaned, dictProvider, getLangCode());
     var el = ensureDictPopover();
 
     el.innerHTML = '';
+    var topRow = document.createElement('div');
+    topRow.className = 'dict-popover-row';
     var wordSpan = document.createElement('span');
     wordSpan.className = 'dict-word';
     wordSpan.textContent = cleaned;
     var link = document.createElement('a');
-    link.href = url;
+    link.href = result.url;
     link.target = '_blank';
     link.rel = 'noopener';
     link.textContent = '사전에서 찾아보기 ↗';
@@ -1220,9 +1268,17 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
     closeX.setAttribute('aria-label', '닫기');
     closeX.textContent = '✕';
     closeX.addEventListener('click', function(){ hideDictPopover(); });
-    el.appendChild(wordSpan);
-    el.appendChild(link);
-    el.appendChild(closeX);
+    topRow.appendChild(wordSpan);
+    topRow.appendChild(link);
+    topRow.appendChild(closeX);
+    el.appendChild(topRow);
+
+    if (result.note){
+      var noteEl = document.createElement('div');
+      noteEl.className = 'dict-popover-note';
+      noteEl.textContent = result.note;
+      el.appendChild(noteEl);
+    }
 
     el.style.display = 'flex';
     var rect = anchorEl.getBoundingClientRect();

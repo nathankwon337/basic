@@ -1162,14 +1162,19 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
   }
 
   // ---------- external dictionary lookup (long-press on a word card) ----------
-  // Naver switched to per-language subdomains after their 2018 redesign
-  // (en.dict.naver.com, de.dict.naver.com, ...), each using a hash-based
-  // search route. The old shared "search.nhn?dicQuery=" endpoint no longer
-  // carries the query through, so we route by language instead.
-  var NAVER_LANG_SUBDOMAIN = {
-    en: 'en', de: 'de', ja: 'ja', zh: 'zh', fr: 'fr', es: 'es', it: 'it',
-    ru: 'ru', pt: 'pt', vi: 'vi', th: 'th', id: 'id', ko: 'ko'
-  };
+  // Naver's dictionary uses two different URL schemes depending on the
+  // language, and there's no single rule that covers all of them:
+  //  - English uses its own subdomain: en.dict.naver.com/#/search?query=
+  //  - Most other languages use a path under the main domain instead:
+  //    dict.naver.com/{code}kodict/#/search?query=
+  //    (confirmed for German "dekodict" and Vietnamese "vikodict")
+  // Languages below the "kodict" line are our best guess based on that
+  // same naming convention, not individually confirmed yet.
+  var NAVER_SUBDOMAIN_LANGS = { en: 'en' }; // confirmed
+  var NAVER_KODICT_LANGS = [
+    'de', 'vi',                          // confirmed
+    'es', 'fr', 'it', 'ru', 'pt', 'th', 'id' // same pattern, not yet individually verified
+  ];
 
   // Daum's dictionary (as opposed to its translator) simply doesn't have
   // German or Spanish sub-dictionaries, so a German/Spanish query silently
@@ -1195,17 +1200,25 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
       provider = 'google';
     }
 
+    if (provider === 'naver'){
+      if (NAVER_SUBDOMAIN_LANGS[langCode]){
+        return { url: 'https://' + NAVER_SUBDOMAIN_LANGS[langCode] + '.dict.naver.com/#/search?query=' + q, note: note };
+      }
+      if (NAVER_KODICT_LANGS.indexOf(langCode) !== -1){
+        return { url: 'https://dict.naver.com/' + langCode + 'kodict/#/search?query=' + q, note: note };
+      }
+      note = '이 언어는 네이버 사전 주소가 아직 확인되지 않아 Google 정의 검색으로 연결했어요.';
+      provider = 'google';
+    }
+
     switch (provider){
       case 'daum':
         return { url: 'https://dic.daum.net/search.do?q=' + q, note: note };
       case 'merriam':
         return { url: 'https://www.merriam-webster.com/dictionary/' + q, note: note };
       case 'google':
-        return { url: 'https://www.google.com/search?q=' + encodeURIComponent('define ' + word), note: note };
-      case 'naver':
       default:
-        var sub = NAVER_LANG_SUBDOMAIN[langCode] || 'en';
-        return { url: 'https://' + sub + '.dict.naver.com/#/search?query=' + q, note: note };
+        return { url: 'https://www.google.com/search?q=' + encodeURIComponent('define ' + word), note: note };
     }
   }
 

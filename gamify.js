@@ -209,10 +209,17 @@
       '.gm-bar{position:fixed;top:0;left:0;right:0;z-index:9998;height:46px;display:flex;align-items:center;' +
       'gap:14px;padding:0 16px;background:linear-gradient(90deg,#1F3A5F,#2C4C78);color:#fff;' +
       'font-family:Inter,-apple-system,sans-serif;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.15);}' +
-      '.gm-bar .gm-nick{display:flex;align-items:center;gap:7px;font-weight:700;cursor:pointer;background:none;border:none;color:#fff;font-size:13px;padding:6px 8px;border-radius:8px;font-family:inherit;}' +
+      '.gm-bar .gm-nick{display:flex;align-items:center;gap:7px;font-weight:700;cursor:pointer;background:none;border:none;color:#fff;font-size:13px;padding:6px 8px;border-radius:8px;font-family:inherit;max-width:40vw;}' +
       '.gm-bar .gm-nick:hover{background:rgba(255,255,255,.12);}' +
+      '.gm-nick-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
       '.gm-avatar{width:22px;height:22px;border-radius:50%;background:#E8A33D;color:#1F3A5F;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;flex-shrink:0;}' +
       '.gm-bar .gm-spacer{flex:1;}' +
+      '@media (max-width:480px){' +
+        '.gm-bar{gap:8px;padding:0 10px;}' +
+        '.gm-bar .gm-nick{gap:0;padding:6px;max-width:none;}' +
+        '.gm-nick-label{display:none;}' +
+        '.gm-pill{padding:5px 8px;gap:3px;}' +
+      '}' +
       '.gm-pill{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.12);padding:5px 10px;border-radius:20px;white-space:nowrap;font-weight:600;}' +
       '.gm-pill.gm-league{cursor:pointer;}' +
       '.gm-credit-num{font-variant-numeric:tabular-nums;transition:color .2s ease;}' +
@@ -668,7 +675,7 @@
       ? '<span class="gm-pill gm-league" id="gm-bar-stats" title="전체 순위에서 내 위치 보기">📊 내 순위</span>'
       : '';
     bar.innerHTML =
-      '<button class="gm-nick" id="gm-bar-nick"><span class="gm-avatar">' + escapeHtml(pr.nickname.charAt(0)) + '</span>' + escapeHtml(pr.nickname) + ' ▾</button>' +
+      '<button class="gm-nick" id="gm-bar-nick" title="' + escapeHtml(pr.nickname) + '"><span class="gm-avatar">' + escapeHtml(pr.nickname.charAt(0)) + '</span><span class="gm-nick-label">' + escapeHtml(pr.nickname) + ' ▾</span></button>' +
       '<span class="gm-spacer"></span>' +
       statsBtn +
       '<span class="gm-pill gm-league" id="gm-bar-league" title="리그 · 클릭해서 배지 보기">' + league.emoji + ' ' + league.name + '</span>' +

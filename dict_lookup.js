@@ -91,6 +91,7 @@
     var style = document.createElement("style");
     style.id = "dict-lookup-styles";
     style.textContent =
+      ".dict-lookup-target{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; }\n" +
       ".dict-lookup-armed{ box-shadow:0 0 0 3px rgba(232,163,61,0.55) !important; }\n" +
       ".dict-lookup-popover{ position:fixed; z-index:10000; display:none; flex-direction:column; gap:6px;\n" +
       "  background:#1E2A44; color:#fff; padding:10px 14px; border-radius:10px;\n" +
@@ -180,13 +181,26 @@
     popoverHideTimer = setTimeout(hidePopover, 5000);
   }
 
-  // Attaches long-press detection to a word element.
+  // Prevents the OS/browser's own long-press gestures (text-selection callout,
+  // "copy" bubble, contextmenu) from firing alongside our custom long-press,
+  // which otherwise swallows the interaction and forces a second tap.
+  function markNonSelectable(el) {
+    injectStyles();
+    el.classList.add("dict-lookup-target");
+    el.addEventListener("contextmenu", function (e) {
+      e.preventDefault();
+    });
+  }
+
+  // Attaches long-press detection to a word element (for cards/buttons where a
+  // plain tap already does something else, e.g. select or add-to-answer).
   //   getWord()      -> string, the word/phrase to look up
   //   getSettings()  -> { enabled: bool, provider: string, langCode: string }
   // Returns { consumeLongPress() } — the element's own click/tap handler
   // should call this first and bail out if it returns true, so long-pressing
   // doesn't also trigger the card's normal action.
   function attach(el, getWord, getSettings) {
+    markNonSelectable(el);
     var timer = null;
     var startX = 0,
       startY = 0;
@@ -237,8 +251,23 @@
     };
   }
 
+  // Attaches single-tap-to-look-up behavior. Use this instead of attach() for
+  // plain text (a sentence, a headword display, ...) that has no other tap
+  // action of its own — long-press there has nothing to disambiguate against,
+  // and waiting for a hold only invites the OS's own text-selection/"Copy"
+  // callout to pop up alongside our dictionary popover.
+  function attachTap(el, getWord, getSettings) {
+    markNonSelectable(el);
+    el.addEventListener("click", function () {
+      var s = getSettings ? getSettings() : {};
+      if (!s.enabled) return;
+      showPopover(getWord(), el, s.provider, s.langCode);
+    });
+  }
+
   global.DictLookup = {
     attach: attach,
+    attachTap: attachTap,
     hidePopover: hidePopover,
     cleanWord: cleanWord,
     getUrl: getDictionaryUrl

@@ -437,7 +437,7 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
 
       <label class="settings-row">
         <input type="checkbox" id="dict-enable" checked>
-        문장 속 단어를 길게 눌러 사전 찾아보기 (베타)
+        문장 속 단어를 탭하면 사전 찾아보기 (베타)
       </label>
       <div class="settings-row" id="dict-provider-row">
         <label for="dict-provider">사전 선택</label>
@@ -1116,12 +1116,16 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
 
     targetSentence.innerHTML = spans.join('');
 
-    // Dictionary long-press only makes sense for space-delimited languages —
-    // for CJK the tokens are single characters, and looking up one hanzi/kana
-    // at a time rarely gives a useful dictionary result.
+    // Dictionary lookup only makes sense for space-delimited languages — for
+    // CJK the tokens are single characters, and looking up one hanzi/kana at
+    // a time rarely gives a useful dictionary result. A single tap (rather
+    // than long-press) opens it, since these tokens are plain sentence text
+    // with no other tap action to disambiguate against, and holding down on
+    // text otherwise triggers the phone's own text-selection "Copy" popup
+    // alongside ours.
     if (!cjk){
       Array.prototype.forEach.call(targetSentence.querySelectorAll('.word-token'), function(tokenEl){
-        DictLookup.attach(tokenEl, function(){ return tokenEl.textContent; }, getDictSettings);
+        DictLookup.attachTap(tokenEl, function(){ return tokenEl.textContent; }, getDictSettings);
       });
     }
   }

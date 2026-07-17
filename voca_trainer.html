@@ -315,7 +315,7 @@
           <option value="google">Google 정의 검색</option>
         </select>
       </div>
-      <p class="hint">카드 학습·짝맞추기의 표제어를 약 0.5초간 길게 누르면 뜻을 찾아볼 수 있는 팝업이 떠요. 빈칸 채우기·혼동 어휘 퀴즈에는 적용되지 않아요 (정답을 바로 찾아버릴 수 있어서요).</p>
+      <p class="hint">카드 학습의 표제어는 한 번 탭하면, 짝맞추기의 표제어는 약 0.5초간 길게 누르면 뜻을 찾아볼 수 있는 팝업이 떠요. 빈칸 채우기·혼동 어휘 퀴즈에는 적용되지 않아요 (정답을 바로 찾아버릴 수 있어서요).</p>
     </div>
 
     <div class="setup-actions"><button class="primary-btn" id="start-btn" disabled>학습 시작하기</button></div>
@@ -968,7 +968,10 @@
   var fcProgressEl = document.getElementById('fc-progress');
   var fcProgressFill = document.getElementById('fc-progress-fill');
   // Attached once (not per-render) so the word always resolves live via fcOrder/fcIndex.
-  DictLookup.attach(fcWordEl, function(){ return vocabSet[fcOrder[fcIndex]].word; }, getDictSettings);
+  // Single tap (not long-press): this is a plain word display with no other tap
+  // action, and holding down on it would otherwise trigger the phone's own
+  // text-selection "Copy" popup alongside our dictionary popover.
+  DictLookup.attachTap(fcWordEl, function(){ return vocabSet[fcOrder[fcIndex]].word; }, getDictSettings);
 
   function startFlashcard(){
     fcOrder = vocabSet.map(function(_,i){ return i; });

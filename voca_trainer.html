@@ -228,6 +228,7 @@
 <body>
 <script src="gamify_config.js"></script>
 <script src="gamify.js"></script>
+<script src="dict_lookup.js"></script>
 <div class="app">
   <header class="top">
     <div class="title-group">
@@ -303,6 +304,18 @@
           <option value="ko-KR">한국어</option>
         </select>
       </div>
+
+      <label class="settings-row"><input type="checkbox" id="dict-enable" checked> 표제어를 길게 눌러 사전 찾아보기 (베타)</label>
+      <div class="settings-row" id="dict-provider-row">
+        <label for="dict-provider" style="font-weight:600; color:var(--ink-soft);">사전 선택</label>
+        <select id="dict-provider">
+          <option value="naver">네이버 사전</option>
+          <option value="daum">다음 사전</option>
+          <option value="merriam">Merriam-Webster (영어 전용)</option>
+          <option value="google">Google 정의 검색</option>
+        </select>
+      </div>
+      <p class="hint">카드 학습·짝맞추기의 표제어를 약 0.5초간 길게 누르면 뜻을 찾아볼 수 있는 팝업이 떠요. 빈칸 채우기·혼동 어휘 퀴즈에는 적용되지 않아요 (정답을 바로 찾아버릴 수 있어서요).</p>
     </div>
 
     <div class="setup-actions"><button class="primary-btn" id="start-btn" disabled>학습 시작하기</button></div>
@@ -476,6 +489,8 @@
   var soundEnabled = true;
   var autoSpeakEnabled = true;
   var speechLang = 'en-US';
+  var dictLookupEnabled = true;
+  var dictProvider = 'naver';
 
   // ---------- element refs: setup ----------
   var setupPanel = document.getElementById('setup-panel');
@@ -491,6 +506,8 @@
   var soundEnableCb = document.getElementById('sound-enable');
   var autospeakEnableCb = document.getElementById('autospeak-enable');
   var speechLangSelect = document.getElementById('speech-lang');
+  var dictEnableCb = document.getElementById('dict-enable');
+  var dictProviderSelect = document.getElementById('dict-provider');
 
   var ghOwnerInput = document.getElementById('gh-owner');
   var ghRepoInput = document.getElementById('gh-repo');
@@ -525,6 +542,7 @@
   function showError(msg){ parseError.textContent = msg; parseError.style.display = msg ? 'block' : 'none'; }
   function escapeHtml(str){ var d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
   function showPanel(id){
+    if (window.DictLookup) DictLookup.hidePopover();
     ['setup-panel','module-panel','flashcard-panel','match-panel','cloze-panel','confusable-panel','review-panel','module-done-panel']
       .forEach(function(p){ document.getElementById(p).style.display = (p === id) ? 'block' : 'none'; });
   }
@@ -866,8 +884,19 @@
     soundEnabled = soundEnableCb.checked;
     autoSpeakEnabled = autospeakEnableCb.checked;
     speechLang = speechLangSelect.value;
+    dictLookupEnabled = dictEnableCb.checked;
+    dictProvider = dictProviderSelect.value;
     showModuleMenu();
   });
+
+  // ---------- external dictionary lookup (long-press a headword) ----------
+  function getLangCode(){
+    return (speechLang || 'en-US').split('-')[0].toLowerCase();
+  }
+
+  function getDictSettings(){
+    return { enabled: dictLookupEnabled, provider: dictProvider, langCode: getLangCode() };
+  }
 
   function showModuleMenu(){
     moduleSetCount.textContent = vocabSet.length + '개 단어 불러옴';
@@ -938,6 +967,8 @@
   var fcTranslationEl = document.getElementById('fc-translation');
   var fcProgressEl = document.getElementById('fc-progress');
   var fcProgressFill = document.getElementById('fc-progress-fill');
+  // Attached once (not per-render) so the word always resolves live via fcOrder/fcIndex.
+  DictLookup.attach(fcWordEl, function(){ return vocabSet[fcOrder[fcIndex]].word; }, getDictSettings);
 
   function startFlashcard(){
     fcOrder = vocabSet.map(function(_,i){ return i; });
@@ -1079,7 +1110,11 @@
     else if ((side==='left' && card.id===matchSelectedLeft) || (side==='right' && card.id===matchSelectedRight)) cls += ' is-selected';
     el.className = cls;
     el.textContent = card.text;
-    el.addEventListener('click', function(){ onMatchCardClick(card, side); });
+    var lp = (side === 'left') ? DictLookup.attach(el, function(){ return card.text; }, getDictSettings) : null;
+    el.addEventListener('click', function(){
+      if (lp && lp.consumeLongPress()) return;
+      onMatchCardClick(card, side);
+    });
     return el;
   }
 

@@ -305,6 +305,7 @@
 <body>
 <script src="gamify_config.js"></script>
 <script src="gamify.js"></script>
+<script src="dict_lookup.js"></script>
 <div class="app">
   <header class="top">
     <div class="title-group">
@@ -433,6 +434,21 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
         통과/실패 효과음 재생하기
       </label>
       <p class="hint">중국어 문장은 한자마다 한어병음이 자동으로 함께 표시돼요.</p>
+
+      <label class="settings-row">
+        <input type="checkbox" id="dict-enable" checked>
+        문장 속 단어를 길게 눌러 사전 찾아보기 (베타)
+      </label>
+      <div class="settings-row" id="dict-provider-row">
+        <label for="dict-provider">사전 선택</label>
+        <select id="dict-provider">
+          <option value="naver">네이버 사전</option>
+          <option value="daum">다음 사전</option>
+          <option value="merriam">Merriam-Webster (영어 전용)</option>
+          <option value="google">Google 정의 검색</option>
+        </select>
+      </div>
+      <p class="hint">띄어쓰기가 있는 언어(영어·독일어 등)에서만 지원돼요. 중국어·일본어는 글자 단위라 사전 연결이 정확하지 않을 수 있어 제외했어요.</p>
     </div>
 
     <div class="setup-actions">
@@ -526,6 +542,8 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
   var difficultyThreshold = 70;
   var speechLang = 'en-US';
   var soundEnabled = true;
+  var dictLookupEnabled = true;
+  var dictProvider = 'naver';
   var recognizer = null;
   var listening = false;
   var noSpeechTimer = null;
@@ -556,6 +574,8 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
   var difficultyGroup = document.getElementById('difficulty-group');
   var speechLangSelect = document.getElementById('speech-lang');
   var soundEnableCb = document.getElementById('sound-enable');
+  var dictEnableCb = document.getElementById('dict-enable');
+  var dictProviderSelect = document.getElementById('dict-provider');
 
   var progressLabel = document.getElementById('progress-label');
   var diffLabel = document.getElementById('diff-label');
@@ -929,6 +949,15 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
     } catch (err) { /* ignore */ }
   }
 
+  // ---------- external dictionary lookup (long-press a word in the sentence) ----------
+  function getLangCode(){
+    return (speechLang || 'en-US').split('-')[0].toLowerCase();
+  }
+
+  function getDictSettings(){
+    return { enabled: dictLookupEnabled, provider: dictProvider, langCode: getLangCode() };
+  }
+
   // ---------- text normalization + LCS matching ----------
   var PUNCT_RE = /[.,!?¿¡;:"“”'’。！？、，；：（）()「」『』・~〜…]/g;
   var HAN_RE = /[\u4E00-\u9FFF\uF900-\uFAFF]/;
@@ -998,6 +1027,8 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
     difficultyThreshold = checkedDiff ? parseInt(checkedDiff.value, 10) : 70;
     speechLang = speechLangSelect.value;
     soundEnabled = soundEnableCb.checked;
+    dictLookupEnabled = dictEnableCb.checked;
+    dictProvider = dictProviderSelect.value;
     startGame();
   });
 
@@ -1084,6 +1115,15 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
     // reading annotations above the kanji.
 
     targetSentence.innerHTML = spans.join('');
+
+    // Dictionary long-press only makes sense for space-delimited languages —
+    // for CJK the tokens are single characters, and looking up one hanzi/kana
+    // at a time rarely gives a useful dictionary result.
+    if (!cjk){
+      Array.prototype.forEach.call(targetSentence.querySelectorAll('.word-token'), function(tokenEl){
+        DictLookup.attach(tokenEl, function(){ return tokenEl.textContent; }, getDictSettings);
+      });
+    }
   }
 
   listenBtn.addEventListener('click', function(){
@@ -1301,17 +1341,20 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
   }
 
   quitBtn.addEventListener('click', function(){
+    DictLookup.hidePopover();
     if (listening) stopListening();
     gamePanel.style.display = 'none';
     setupPanel.style.display = 'block';
   });
 
   replayBtn.addEventListener('click', function(){
+    DictLookup.hidePopover();
     donePanel.style.display = 'none';
     startGame();
   });
 
   newSetBtn.addEventListener('click', function(){
+    DictLookup.hidePopover();
     donePanel.style.display = 'none';
     setupPanel.style.display = 'block';
   });

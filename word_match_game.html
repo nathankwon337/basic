@@ -336,6 +336,7 @@
 <body>
 <script src="gamify_config.js"></script>
 <script src="gamify.js"></script>
+<script src="dict_lookup.js"></script>
 <div class="app">
   <header class="top">
     <div class="title-group">
@@ -449,6 +450,21 @@ bring | 가져오다"></textarea>
       <div class="settings-row">
         <button class="ghost-btn" id="sound-test-btn" type="button">효과음 테스트</button>
       </div>
+
+      <label class="settings-row">
+        <input type="checkbox" id="dict-enable" checked>
+        외국어 카드를 길게 눌러 사전 찾아보기 (베타)
+      </label>
+      <div class="settings-row" id="dict-provider-row">
+        <label for="dict-provider">사전 선택</label>
+        <select id="dict-provider">
+          <option value="naver">네이버 사전</option>
+          <option value="daum">다음 사전</option>
+          <option value="merriam">Merriam-Webster (영어 전용)</option>
+          <option value="google">Google 정의 검색</option>
+        </select>
+      </div>
+      <p class="hint">외국어 단어 카드를 약 0.5초간 길게 누르면 뜻을 찾아볼 수 있는 작은 팝업이 뜹니다. 한글 뜻 카드에는 적용되지 않아요.</p>
     </div>
 
     <div class="setup-actions">
@@ -544,6 +560,9 @@ bring | 가져오다"></textarea>
   var pronounceLang = 'en-US';
   var soundEnabled = true;
 
+  var dictLookupEnabled = true;
+  var dictProvider = 'naver';
+
   // ---------- element refs ----------
   var setupPanel = document.getElementById('setup-panel');
   var gamePanel = document.getElementById('game-panel');
@@ -576,6 +595,9 @@ bring | 가져오다"></textarea>
 
   var soundEnableCb = document.getElementById('sound-enable');
   var soundTestBtn = document.getElementById('sound-test-btn');
+
+  var dictEnableCb = document.getElementById('dict-enable');
+  var dictProviderSelect = document.getElementById('dict-provider');
 
   var wordCountLabel = document.getElementById('word-count-label');
   var goalBadge = document.getElementById('goal-badge');
@@ -629,6 +651,15 @@ bring | 가져오다"></textarea>
   function speakWord(text){
     if (!pronounceEnabled) return;
     doSpeak(text, pronounceLang);
+  }
+
+  // ---------- external dictionary lookup (long-press a foreign-word card) ----------
+  function getLangCode(){
+    return (pronounceLang || 'en-US').split('-')[0].toLowerCase();
+  }
+
+  function getDictSettings(){
+    return { enabled: dictLookupEnabled, provider: dictProvider, langCode: getLangCode() };
   }
 
   pronounceTestBtn.addEventListener('click', function(){
@@ -987,6 +1018,8 @@ bring | 가져오다"></textarea>
     pronounceEnabled = pronounceEnableCb.checked;
     pronounceLang = pronounceLangSelect.value;
     soundEnabled = soundEnableCb.checked;
+    dictLookupEnabled = dictEnableCb.checked;
+    dictProvider = dictProviderSelect.value;
 
     var shuffledAll = shuffle(allPairs);
     batches = chunkArray(shuffledAll, BATCH_SIZE);
@@ -1066,7 +1099,11 @@ bring | 가져오다"></textarea>
     else if ((side === 'left' && card.id === selectedLeftId) || (side === 'right' && card.id === selectedRightId)) cls += ' is-selected';
     el.className = cls;
     el.textContent = card.text;
-    el.addEventListener('click', function(){ onCardClick(card, side); });
+    var lp = (side === 'left') ? DictLookup.attach(el, function(){ return card.text; }, getDictSettings) : null;
+    el.addEventListener('click', function(){
+      if (lp && lp.consumeLongPress()) return;
+      onCardClick(card, side);
+    });
     return el;
   }
 
@@ -1147,6 +1184,7 @@ bring | 가져오다"></textarea>
   }
 
   function finishGame(){
+    DictLookup.hidePopover();
     clearInterval(tickInterval);
     var totalElapsed = (Date.now() - startTime) / 1000;
 
@@ -1259,12 +1297,14 @@ bring | 가져오다"></textarea>
   });
 
   quitBtn.addEventListener('click', function(){
+    DictLookup.hidePopover();
     clearInterval(tickInterval);
     gamePanel.style.display = 'none';
     setupPanel.style.display = 'block';
   });
 
   replayBtn.addEventListener('click', function(){
+    DictLookup.hidePopover();
     donePanel.style.display = 'none';
     startGame();
   });
@@ -1272,11 +1312,13 @@ bring | 가져오다"></textarea>
   retryMissedBtn.addEventListener('click', function(){
     if (!lastMissedList.length) return;
     allPairs = lastMissedList.slice();
+    DictLookup.hidePopover();
     donePanel.style.display = 'none';
     startGame();
   });
 
   newSetBtn.addEventListener('click', function(){
+    DictLookup.hidePopover();
     donePanel.style.display = 'none';
     setupPanel.style.display = 'block';
   });

@@ -512,58 +512,8 @@
   body.ck-dragging, body.ck-dragging *{
     cursor:grabbing !important;
   }
-
-  .word-card.dict-armed{
-    box-shadow:0 0 0 3px rgba(232,163,61,0.55);
-  }
-
-  .dict-popover{
-    position:fixed;
-    z-index:10000;
-    display:none;
-    flex-direction:column;
-    gap:6px;
-    background:var(--ink);
-    color:#fff;
-    padding:10px 14px;
-    border-radius:10px;
-    font-family:'Inter', sans-serif;
-    font-size:13.5px;
-    box-shadow:0 10px 24px -8px rgba(30,42,68,0.45);
-    max-width:min(320px, calc(100vw - 16px));
-  }
-  .dict-popover-row{
-    display:flex;
-    align-items:center;
-    gap:12px;
-  }
-  .dict-popover .dict-word{
-    font-family:'Space Grotesk', monospace;
-    font-weight:700;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-  }
-  .dict-popover a{
-    color:var(--amber);
-    font-weight:700;
-    text-decoration:none;
-    white-space:nowrap;
-  }
-  .dict-popover a:hover{ text-decoration:underline; }
-  .dict-popover .close-x{
-    margin-left:auto;
-    cursor:pointer;
-    opacity:0.65;
-    padding:2px 4px;
-    flex-shrink:0;
-  }
-  .dict-popover .close-x:hover{ opacity:1; }
-  .dict-popover-note{
-    font-size:11.5px;
-    color:#C7CCDE;
-    line-height:1.4;
-  }
+  /* Long-press dictionary lookup styling (.dict-lookup-armed, .dict-lookup-popover, ...)
+     is injected by dict_lookup.js so it stays consistent across every game. */
 
   .word-card.in-answer.flash-correct{
     background:var(--success);
@@ -831,6 +781,7 @@
 <body>
 <script src="gamify_config.js"></script>
 <script src="gamify.js"></script>
+<script src="dict_lookup.js"></script>
 <div class="app">
   <header class="top">
     <div class="title-group">
@@ -1056,8 +1007,6 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
 
   var dictLookupEnabled = true;
   var dictProvider = 'naver';
-  var DICT_LONG_PRESS_MS = 550;
-  var DICT_MOVE_TOLERANCE = 8;
 
   var sentenceActiveMs = 0;   // active solving time accumulated for the current sentence (ms)
   var activeSince = 0;        // timestamp when the active period started, 0 while paused
@@ -1162,194 +1111,15 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
   }
 
   // ---------- external dictionary lookup (long-press on a word card) ----------
-  // Naver's dictionary uses two different URL schemes depending on the
-  // language, and there's no single rule that covers all of them:
-  //  - English uses its own subdomain: en.dict.naver.com/#/search?query=
-  //  - Most other languages use a path under the main domain instead:
-  //    dict.naver.com/{code}kodict/#/search?query=
-  //    (confirmed for German "dekodict" and Vietnamese "vikodict")
-  // Languages below the "kodict" line are our best guess based on that
-  // same naming convention, not individually confirmed yet.
-  var NAVER_SUBDOMAIN_LANGS = { en: 'en' }; // confirmed
-  var NAVER_KODICT_LANGS = [
-    'de', 'vi',                          // confirmed
-    'es', 'fr', 'it', 'ru', 'pt', 'th', 'id' // same pattern, not yet individually verified
-  ];
-
-  // Daum's dictionary (as opposed to its translator) simply doesn't have
-  // German or Spanish sub-dictionaries, so a German/Spanish query silently
-  // falls through to its English dictionary and returns a near-miss word.
-  var DAUM_UNSUPPORTED_LANGS = { de: true, es: true };
-
+  // The actual URL-building, popover UI, and long-press detection now live in
+  // dict_lookup.js, shared across all four games. This just wires this game's
+  // settings (enabled/provider/language) into that shared module.
   function getLangCode(){
     return (pronounceLang || 'en-US').split('-')[0].toLowerCase();
   }
 
-  // Returns { url, note } — note is a short explanation shown in the popover
-  // when we had to substitute a different dictionary than the one selected.
-  function getDictionaryUrl(word, provider, langCode){
-    var q = encodeURIComponent(word);
-    var note = '';
-
-    if (provider === 'daum' && DAUM_UNSUPPORTED_LANGS[langCode]){
-      note = '다음사전은 이 언어를 지원하지 않아 네이버 사전으로 연결했어요.';
-      provider = 'naver';
-    }
-    if (provider === 'merriam' && langCode !== 'en'){
-      note = 'Merriam-Webster는 영어 전용이라 Google 정의 검색으로 연결했어요.';
-      provider = 'google';
-    }
-
-    if (provider === 'naver'){
-      if (NAVER_SUBDOMAIN_LANGS[langCode]){
-        return { url: 'https://' + NAVER_SUBDOMAIN_LANGS[langCode] + '.dict.naver.com/#/search?query=' + q, note: note };
-      }
-      if (NAVER_KODICT_LANGS.indexOf(langCode) !== -1){
-        return { url: 'https://dict.naver.com/' + langCode + 'kodict/#/search?query=' + q, note: note };
-      }
-      note = '이 언어는 네이버 사전 주소가 아직 확인되지 않아 Google 정의 검색으로 연결했어요.';
-      provider = 'google';
-    }
-
-    switch (provider){
-      case 'daum':
-        return { url: 'https://dic.daum.net/search.do?q=' + q, note: note };
-      case 'merriam':
-        return { url: 'https://www.merriam-webster.com/dictionary/' + q, note: note };
-      case 'google':
-      default:
-        return { url: 'https://www.google.com/search?q=' + encodeURIComponent('define ' + word), note: note };
-    }
-  }
-
-  // Strips leading/trailing punctuation while keeping internal apostrophes/hyphens
-  // and non-Latin characters (CJK, accented letters, etc.) intact.
-  function cleanWordForLookup(word){
-    try {
-      return word.replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, '');
-    } catch (err) {
-      // very old browsers without unicode property escape support
-      return word.replace(/^[^\w']+|[^\w']+$/g, '');
-    }
-  }
-
-  var dictPopoverEl = null;
-  var dictPopoverHideTimer = null;
-
-  function ensureDictPopover(){
-    if (dictPopoverEl) return dictPopoverEl;
-    dictPopoverEl = document.createElement('div');
-    dictPopoverEl.className = 'dict-popover';
-    document.body.appendChild(dictPopoverEl);
-    document.addEventListener('pointerdown', function(e){
-      if (dictPopoverEl.style.display === 'none' || !dictPopoverEl.style.display) return;
-      if (dictPopoverEl.contains(e.target)) return;
-      hideDictPopover();
-    });
-    window.addEventListener('scroll', hideDictPopover, true);
-    return dictPopoverEl;
-  }
-
-  function hideDictPopover(){
-    if (!dictPopoverEl) return;
-    dictPopoverEl.style.display = 'none';
-    if (dictPopoverHideTimer){ clearTimeout(dictPopoverHideTimer); dictPopoverHideTimer = null; }
-  }
-
-  function showDictPopover(word, anchorEl){
-    if (!dictLookupEnabled) return;
-    var cleaned = cleanWordForLookup(word);
-    if (!cleaned) return;
-    var result = getDictionaryUrl(cleaned, dictProvider, getLangCode());
-    var el = ensureDictPopover();
-
-    el.innerHTML = '';
-    var topRow = document.createElement('div');
-    topRow.className = 'dict-popover-row';
-    var wordSpan = document.createElement('span');
-    wordSpan.className = 'dict-word';
-    wordSpan.textContent = cleaned;
-    var link = document.createElement('a');
-    link.href = result.url;
-    link.target = '_blank';
-    link.rel = 'noopener';
-    link.textContent = '사전에서 찾아보기 ↗';
-    link.addEventListener('click', function(){ hideDictPopover(); });
-    var closeX = document.createElement('span');
-    closeX.className = 'close-x';
-    closeX.setAttribute('role', 'button');
-    closeX.setAttribute('aria-label', '닫기');
-    closeX.textContent = '✕';
-    closeX.addEventListener('click', function(){ hideDictPopover(); });
-    topRow.appendChild(wordSpan);
-    topRow.appendChild(link);
-    topRow.appendChild(closeX);
-    el.appendChild(topRow);
-
-    if (result.note){
-      var noteEl = document.createElement('div');
-      noteEl.className = 'dict-popover-note';
-      noteEl.textContent = result.note;
-      el.appendChild(noteEl);
-    }
-
-    el.style.display = 'flex';
-    var rect = anchorEl.getBoundingClientRect();
-    var elRect = el.getBoundingClientRect();
-    var left = rect.left + rect.width / 2 - elRect.width / 2;
-    left = Math.max(8, Math.min(left, window.innerWidth - elRect.width - 8));
-    var top = rect.top - elRect.height - 10;
-    if (top < 8) top = rect.bottom + 10;
-    el.style.left = left + 'px';
-    el.style.top = top + 'px';
-
-    if (dictPopoverHideTimer) clearTimeout(dictPopoverHideTimer);
-    dictPopoverHideTimer = setTimeout(hideDictPopover, 5000);
-  }
-
-  // Attaches long-press detection to a word card element. Returns an object with
-  // consumeLongPress(), which the card's own click/tap handler should check first
-  // so that the long-press interaction doesn't also trigger the card's normal action.
-  function attachDictLongPress(el, getWord){
-    var timer = null;
-    var startX = 0, startY = 0;
-    var longPressFired = false;
-
-    function cancelTimer(){
-      if (timer){ clearTimeout(timer); timer = null; }
-      el.classList.remove('dict-armed');
-    }
-
-    el.addEventListener('pointerdown', function(e){
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      startX = e.clientX;
-      startY = e.clientY;
-      cancelTimer();
-      el.classList.add('dict-armed');
-      timer = setTimeout(function(){
-        timer = null;
-        longPressFired = true;
-        el.classList.remove('dict-armed');
-        showDictPopover(getWord(), el);
-      }, DICT_LONG_PRESS_MS);
-    });
-
-    el.addEventListener('pointermove', function(e){
-      if (!timer) return;
-      if (Math.abs(e.clientX - startX) > DICT_MOVE_TOLERANCE || Math.abs(e.clientY - startY) > DICT_MOVE_TOLERANCE){
-        cancelTimer();
-      }
-    });
-
-    el.addEventListener('pointerup', cancelTimer);
-    el.addEventListener('pointercancel', cancelTimer);
-
-    return {
-      consumeLongPress: function(){
-        if (longPressFired){ longPressFired = false; return true; }
-        return false;
-      }
-    };
+  function getDictSettings(){
+    return { enabled: dictLookupEnabled, provider: dictProvider, langCode: getLangCode() };
   }
 
   pronounceTestBtn.addEventListener('click', function(){
@@ -1750,7 +1520,7 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
   }
 
   function loadSentence(){
-    hideDictPopover();
+    DictLookup.hidePopover();
     awaitingNext = false;
     currentSentenceCorrect = false;
     feedbackEl.style.display = 'none';
@@ -1920,7 +1690,7 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
     el.className = 'word-card';
     el.textContent = tok.text;
     el.dataset.id = tok.id;
-    var lp = attachDictLongPress(el, function(){ return tok.text; });
+    var lp = DictLookup.attach(el, function(){ return tok.text; }, getDictSettings);
     el.addEventListener('click', function(){
       if (lp.consumeLongPress()) return;
       if (awaitingNext) return;
@@ -2157,7 +1927,7 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
   }
 
   function finishGame(){
-    hideDictPopover();
+    DictLookup.hidePopover();
     stopTimer();
     document.body.classList.remove('in-game');
     gamePanel.style.display = 'none';
@@ -2255,7 +2025,7 @@ She likes reading books. | 그녀는 책 읽는 것을 좋아한다."></textarea
   });
 
   quitBtn.addEventListener('click', function(){
-    hideDictPopover();
+    DictLookup.hidePopover();
     stopTimer();
     document.body.classList.remove('in-game');
     gamePanel.style.display = 'none';

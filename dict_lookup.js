@@ -29,7 +29,7 @@
   // dict.naver.com/{code}kodict/#/search?query=
   // Confirmed for German ("dekodict") and Vietnamese ("vikodict"); the rest
   // follow the same naming convention but haven't been individually verified.
-  var NAVER_KODICT_LANGS = ["de", "vi", "es", "fr", "it", "ru", "pt", "th", "id"];
+  var NAVER_KODICT_LANGS = ["de", "vi", "es", "fr", "it", "ru", "pt", "th", "id", "cs"];
 
   // Daum's dictionary (as opposed to its translator) has no German or
   // Spanish sub-dictionary, so those queries silently fall through to its

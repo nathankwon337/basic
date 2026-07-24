@@ -433,6 +433,7 @@ bring | 가져오다"></textarea>
           <option value="es-ES">스페인어</option>
           <option value="it-IT">이탈리아어</option>
           <option value="ru-RU">러시아어</option>
+          <option value="cs-CZ">체코어</option>
           <option value="pt-BR">포르투갈어 (브라질)</option>
           <option value="vi-VN">베트남어</option>
           <option value="th-TH">태국어</option>
@@ -782,6 +783,7 @@ bring | 가져오다"></textarea>
     if (/spanish/.test(s)) return 'es-ES';
     if (/italian/.test(s)) return 'it-IT';
     if (/russian/.test(s)) return 'ru-RU';
+    if (/czech/.test(s)) return 'cs-CZ';
     if (/portuguese/.test(s)) return 'pt-BR';
     if (/vietnamese/.test(s)) return 'vi-VN';
     if (/\bthai\b/.test(s)) return 'th-TH';
@@ -795,6 +797,7 @@ bring | 가져오다"></textarea>
     if (/[\u3040-\u30ff]/.test(sample)) return 'ja-JP';
     if (/[\u4e00-\u9fff]/.test(sample)) return 'zh-CN';
     if (/[äöüßÄÖÜ]/.test(sample)) return 'de-DE';
+    if (/[řůě]/i.test(sample)) return 'cs-CZ';
     return null;
   }
   function detectPronounceLang(filename, list){
